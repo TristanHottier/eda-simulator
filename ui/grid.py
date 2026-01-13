@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QGraphicsItem
 from PySide6.QtGui import QPen, QColor, QPainter
 from PySide6.QtCore import QRectF, Qt
 
+
 class GridItem(QGraphicsItem):
     def __init__(self, spacing=50):
         super().__init__()
