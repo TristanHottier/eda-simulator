@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# Qt
+*.qrc
+*.qmlc
+*.qm
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Build / cache
+build/
+dist/
+*.spec
+
+# Simulation output
+*.raw
+*.log
+*.out
