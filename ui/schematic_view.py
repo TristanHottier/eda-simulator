@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsEllipseIte
 from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import QPainter, QPen, QColor, QPainterPath
 from ui.component_item import ComponentItem
+from ui.pin_item import PinItem
 from ui.wire_segment_item import WireSegmentItem
 from ui.undo_commands import UndoStack
 
@@ -122,6 +123,9 @@ class SchematicView(QGraphicsView):
             return
 
         # Component mode
+        item = self.itemAt(event.pos())
+        if isinstance(item, ComponentItem):
+            item.setFocus()  # Ensure the item has focus to receive key events
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -186,15 +190,40 @@ class SchematicView(QGraphicsView):
     # COMPONENTS
     # -------------------
     def add_component(self, ref, comp_type="generic"):
-        item = ComponentItem(ref)
+        from core.component import Component
+        from core.pin import Pin, PinDirection
+
+        # 1. Create the logical pins first
+        # Example: default 2 pins for a generic component
+        pins = [
+            Pin("1", PinDirection.BIDIRECTIONAL),
+            Pin("2", PinDirection.BIDIRECTIONAL)
+        ]
+
+        # 2. Create the logical component model
+        comp_model = Component(ref=ref, pins=pins, comp_type=comp_type)
+        self.components.append(comp_model)
+
+        # 3. Create the visual item, passing the model
+        item = ComponentItem(comp_model)
         self.scene.addItem(item)
 
-        from core.component import Component
-        comp = Component(ref=ref, pins=[], comp_type=comp_type)
-        self.components.append(comp)
         return item
 
     def snap_to_grid(self, pos: QPointF) -> QPointF:
+        # 1. Check for Component Pins (High priority)
+        items = self.scene.items(pos, Qt.IntersectsItemShape)
+        for item in items:
+            if isinstance(item, PinItem):
+                return item.scene_connection_point()
+
+        # 2. Check for Wire Junctions (acting as pins)
+        for junction in self.junctions:
+            # If mouse is within 15 pixels of a junction, snap to it
+            if (junction.scenePos() - pos).manhattanLength() < 15:
+                return junction.scenePos()
+
+        # 3. Standard Grid Snapping
         x = round(pos.x() / self.GRID_SIZE) * self.GRID_SIZE
         y = round(pos.y() / self.GRID_SIZE) * self.GRID_SIZE
         return QPointF(x, y)

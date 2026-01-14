@@ -57,13 +57,21 @@ class ParameterDialog(QDialog):
 
             old_val = self.component_model.parameters.get(key, None)
             if old_val != val:
-                # get the view's undo stack
                 view = self.component_item.scene().views()[0] if self.component_item.scene().views() else None
                 if view and hasattr(view, "undo_stack"):
-                    view.undo_stack.push(ParameterChangeCommand(self.component_item, key, old_val, val))
+                    # FIX: Pass the MODEL first, then the ITEM for visual updates
+                    view.undo_stack.push(ParameterChangeCommand(
+                        self.component_model,
+                        key,
+                        old_val,
+                        val,
+                        component_item=self.component_item
+                    ))
                 else:
-                    # fallback: update directly if no undo_stack yet
                     self.component_model.parameters[key] = val
+
+            # ... (Label refresh logic) ...
+        super().accept()
 
         # Update component label with main key if exists
         main_key = next(

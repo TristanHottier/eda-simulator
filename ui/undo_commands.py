@@ -39,18 +39,35 @@ class MoveComponentCommand:
 
 class ParameterChangeCommand:
     def __init__(self, component_model, key, old_value, new_value, component_item=None):
-        self.model = component_model
+        self.model = component_model # This should be the core.component.Component object
         self.key = key
         self.old_value = old_value
         self.new_value = new_value
         self.component_item = component_item
 
     def undo(self):
-        self.model.update_parameter(self.key, self.old_value)
+        # Update the logical model
+        self.model.parameters[self.key] = self.old_value
+        # Refresh the UI label
         if self.component_item:
             self.component_item.update_label_after_dialog(self.model)
 
     def redo(self):
-        self.model.update_parameter(self.key, self.new_value)
+        # Update the logical model
+        self.model.parameters[self.key] = self.new_value
+        # Refresh the UI label
         if self.component_item:
             self.component_item.update_label_after_dialog(self.model)
+
+
+class RotateComponentCommand:
+    def __init__(self, component_item, old_rotation, new_rotation):
+        self.component_item = component_item
+        self.old_rotation = old_rotation
+        self.new_rotation = new_rotation
+
+    def undo(self):
+        self.component_item.setRotation(self.old_rotation)
+
+    def redo(self):
+        self.component_item.setRotation(self.new_rotation)

@@ -1,23 +1,28 @@
 from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
-from ui.undo_commands import MoveComponentCommand
+from ui.undo_commands import MoveComponentCommand, RotateComponentCommand
+from ui.pin_item import PinItem
 
 
 class ComponentItem(QGraphicsRectItem):
     GRID_SIZE = 50
 
-    def __init__(self, ref, width=60, height=30):
+    def __init__(self, component_model, width=100, height=50):
         super().__init__(0, 0, width, height)
-        self.ref = ref
+        self.model = component_model
+        self.ref = self.model.ref
         self.old_pos = None
 
         # --- Flags ---
         self.setFlags(
             QGraphicsRectItem.ItemIsSelectable |
             QGraphicsRectItem.ItemIsFocusable |
-            QGraphicsRectItem.ItemIsMovable
+            QGraphicsRectItem.ItemIsMovable |
+            QGraphicsRectItem.ItemSendsScenePositionChanges  # Add this
         )
+        # Set origin to center for clean rotation
+        self.setTransformOriginPoint(width / 2, height / 2)
         self.setAcceptedMouseButtons(Qt.LeftButton)
 
         # --- Visuals ---
@@ -25,8 +30,14 @@ class ComponentItem(QGraphicsRectItem):
         self.setPen(QColor("black"))
 
         # --- Label ---
-        self.label = QGraphicsTextItem(ref, self)
+        self.label = QGraphicsTextItem(self.ref, self)
         self.update_label_position()
+
+        for i, pin in enumerate(self.model.pins):
+            # Simple logic: first pin left, second pin right
+            x_pos = 0 if i == 0 else width
+            y_pos = height / 2
+            PinItem(pin, x_pos, y_pos, self)
 
     def update_label_position(self):
         self.label.setPos(
@@ -118,3 +129,17 @@ class ComponentItem(QGraphicsRectItem):
         else:
             self.label.setPlainText(self.ref)
         self.update_label_position()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_R:
+            old_rot = self.rotation()
+            new_rot = (old_rot + 90) % 360
+
+            view = self.scene().views()[0] if self.scene().views() else None
+            if view and hasattr(view, "undo_stack"):
+                view.undo_stack.push(RotateComponentCommand(self, old_rot, new_rot))
+            else:
+                self.setRotation(new_rot)
+            event.accept()
+        else:
+            super().keyPressEvent(event)
