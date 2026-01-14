@@ -33,6 +33,10 @@ class AppWindow(QMainWindow):
             elif event.key() == Qt.Key_Y:
                 if hasattr(self.schematic_view, "undo_stack"):
                     self.schematic_view.undo_stack.redo()
+            elif event.key() == Qt.Key_S:  # Add Save Shortcut
+                self.schematic_view.save_to_json()
+            elif event.key() == Qt.Key_O:  # Add Open Shortcut
+                self.schematic_view.load_from_json()
         else:
             super().keyPressEvent(event)
 

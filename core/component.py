@@ -38,3 +38,12 @@ class Component:
     def all_parameters(self):
         """Return all parameter key-value pairs"""
         return self.parameters.items()
+
+    def to_dict(self):
+        """Serializes the component logic for JSON storage."""
+        return {
+            "ref": self.ref,
+            "comp_type": self.type,
+            "parameters": self.parameters,
+            "pins": [p.name for p in self.pins]  # Assuming Pin has a name attribute
+        }

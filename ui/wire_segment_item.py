@@ -8,6 +8,7 @@ class WireSegmentItem(QGraphicsLineItem):
         super().__init__(x1, y1, x2, y2)
 
         self.net_id = None
+        self.preview = preview  # Add this line to fix the AttributeError
         self.is_highlighted = False
 
         self.base_pen = QPen(QColor(255, 0, 0), 2)

@@ -5,6 +5,8 @@ from ui.component_item import ComponentItem
 from ui.pin_item import PinItem
 from ui.wire_segment_item import WireSegmentItem
 from ui.undo_commands import UndoStack
+import json
+from PySide6.QtWidgets import QFileDialog
 
 
 class SchematicView(QGraphicsView):
@@ -349,6 +351,108 @@ class SchematicView(QGraphicsView):
     def set_mode(self, mode: str):
         if mode in ("component", "wire"):
             self.mode = mode
+
+    def save_to_json(self):
+        filename, _ = QFileDialog.getSaveFileName(self, "Save Schematic", "", "JSON Files (*.json)")
+        if not filename:
+            return
+
+        data = {
+            "components": [],
+            "wires": []
+        }
+
+        # 1. Serialize Components
+        # We find the UI item for each logical component to get its position/rotation
+        for comp_model in self.components:
+            # Find the corresponding UI item in the scene
+            ui_item = next((item for item in self.scene.items()
+                            if isinstance(item, ComponentItem) and item.ref == comp_model.ref), None)
+
+            if ui_item:
+                comp_data = comp_model.to_dict()
+                comp_data.update({
+                    "x": ui_item.x(),
+                    "y": ui_item.y(),
+                    "rotation": ui_item.rotation()
+                })
+                data["components"].append(comp_data)
+
+        # 2. Serialize Wires
+        # Since wires are segments, we save their start/end points and Net ID
+        for wire in self.scene.items():
+            if isinstance(wire, WireSegmentItem) and not wire.preview:
+                line = wire.line()
+                data["wires"].append({
+                    "x1": line.x1(), "y1": line.y1(),
+                    "x2": line.x2(), "y2": line.y2(),
+                    "net_id": wire.net_id
+                })
+
+        with open(filename, 'w') as f:
+            json.dump(data, f, indent=4)
+
+    def load_from_json(self):
+        filename, _ = QFileDialog.getOpenFileName(self, "Open Schematic", "", "JSON Files (*.json)")
+        if not filename:
+            return
+
+        with open(filename, 'r') as f:
+            data = json.load(f)
+
+        # 1. Clear current state
+        self.scene.clear()
+        self.components = []
+        self.junctions = []
+        self.point_to_net = {}
+        self.net_to_wires = {}
+        self.undo_stack = UndoStack()  # Reset undo history on load
+
+        # 2. Reconstruct Components
+        from core.component import Component
+        from core.pin import Pin, PinDirection
+
+        for comp_data in data.get("components", []):
+            # Recreate logical pins (assuming 2 for generic components)
+            pins = [Pin("1", PinDirection.BIDIRECTIONAL), Pin("2", PinDirection.BIDIRECTIONAL)]
+
+            # Create logic model
+            comp_model = Component(
+                ref=comp_data["ref"],
+                pins=pins,
+                comp_type=comp_data["comp_type"]
+            )
+            comp_model.parameters = comp_data.get("parameters", {})
+            self.components.append(comp_model)
+
+            # Create visual item
+            ui_item = ComponentItem(comp_model)
+            ui_item.setPos(comp_data["x"], comp_data["y"])
+            ui_item.setRotation(comp_data.get("rotation", 0))
+            self.scene.addItem(ui_item)
+
+        # 3. Reconstruct Wires
+        for wire_data in data.get("wires", []):
+            wire = WireSegmentItem(
+                wire_data["x1"], wire_data["y1"],
+                wire_data["x2"], wire_data["y2"]
+            )
+            wire.net_id = wire_data["net_id"]
+            self.scene.addItem(wire)
+
+            # Re-register wire points for net management
+            pts = [(wire_data["x1"], wire_data["y1"]), (wire_data["x2"], wire_data["y2"])]
+            for pt in pts:
+                self.point_to_net[pt] = wire.net_id
+
+            # Restore net_to_wires map
+            if wire.net_id not in self.net_to_wires:
+                self.net_to_wires[wire.net_id] = []
+            self.net_to_wires[wire.net_id].append(wire)
+
+            # Re-create junctions at endpoints
+            self.create_junction(QPointF(wire_data["x1"], wire_data["y1"]))
+            self.create_junction(QPointF(wire_data["x2"], wire_data["y2"]))
 
 
 
