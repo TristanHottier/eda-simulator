@@ -1,3 +1,8 @@
+from PySide6.QtWidgets import QGraphicsEllipseItem
+
+from ui.wire_segment_item import WireSegmentItem
+
+
 class UndoStack:
     def __init__(self):
         self.stack = []
@@ -71,3 +76,82 @@ class RotateComponentCommand:
 
     def redo(self):
         self.component_item.setRotation(self.new_rotation)
+
+
+class CreateWireCommand:
+    def __init__(self, schematic_view, created_items, net_history_snapshot):
+        self.view = schematic_view
+        self.items = created_items  # This list now contains WireSegmentItems AND QGraphicsEllipseItems
+        self.net_history = net_history_snapshot
+
+    def undo(self):
+        # 1. Remove all visual items from the scene
+        for item in self.items:
+            self.view.scene.removeItem(item)
+
+            # 2. If the item is a junction, remove it from the tracking list
+            if item in self.view.junctions:
+                self.view.junctions.remove(item)
+
+        # 3. Revert the net mapping
+        self.view.point_to_net = self.net_history.copy()
+
+    def redo(self):
+        # 1. Add everything back to the scene
+        for item in self.items:
+            self.view.scene.addItem(item)
+
+            # 2. Put junctions back into the tracking list
+            if isinstance(item, QGraphicsEllipseItem) and item not in self.view.junctions:
+                self.view.junctions.append(item)
+
+            # 3. Re-register net points for wire segments
+            if isinstance(item, WireSegmentItem):
+                line = item.line()
+                self.view.point_to_net[(line.x1(), line.y1())] = item.net_id
+                self.view.point_to_net[(line.x2(), line.y2())] = item.net_id
+
+
+class DeleteCommand:
+    def __init__(self, schematic_view, items):
+        self.view = schematic_view
+        self.items = items  # includes ComponentItems, WireSegmentItems, and now Junctions (EllipseItems)
+
+        # Logical snapshots
+        self.models = [item.model for item in items if hasattr(item, 'model')]
+        self.junction_items = [item for item in items if isinstance(item, QGraphicsEllipseItem)]
+
+        # Wire data storage
+        self.wire_data = []
+        for item in items:
+            if isinstance(item, WireSegmentItem):
+                line = item.line()
+                self.wire_data.append(((line.x1(), line.y1()), (line.x2(), line.y2()), item.net_id))
+
+    def redo(self):
+        for item in self.items:
+            self.view.scene.removeItem(item)
+            # Remove from logical tracking
+            if item in self.view.junctions:
+                self.view.junctions.remove(item)
+
+        for model in self.models:
+            if model in self.view.components:
+                self.view.components.remove(model)
+
+        self.view.cleanup_junctions()
+
+    def undo(self):
+        for item in self.items:
+            self.view.scene.addItem(item)
+            # Restore to logical tracking
+            if item in self.junction_items:
+                self.view.junctions.append(item)
+
+        for model in self.models:
+            self.view.components.append(model)
+
+        # Restore wire net logic
+        for p1, p2, net_id in self.wire_data:
+            self.view.point_to_net[p1] = net_id
+            self.view.point_to_net[p2] = net_id
