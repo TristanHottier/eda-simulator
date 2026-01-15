@@ -17,6 +17,7 @@ class SchematicView(QGraphicsView):
 
         # --- Scene ---
         self.setMouseTracking(True)
+        self.setDragMode(QGraphicsView.RubberBandDrag)
         self.scene = QGraphicsScene()
         self.setScene(self.scene)
         self.setSceneRect(-5000, -5000, 10000, 10000)
@@ -195,6 +196,19 @@ class SchematicView(QGraphicsView):
 
         super().mouseReleaseEvent(event)
 
+    def keyPressEvent(self, event):
+        # 1. Handle Deletion (Global Action)
+        if event.key() in (Qt.Key_Delete, Qt.Key_Backspace):
+            selected_items = self.scene.selectedItems()
+            if selected_items:
+                from ui.undo_commands import DeleteCommand
+                # We push the command, which handles logic and visuals for all items
+                self.undo_stack.push(DeleteCommand(self, selected_items))
+            return
+
+            # 2. Forward other keys (like 'R' for rotation) to the items
+        super().keyPressEvent(event)
+
     # -------------------
     # COMPONENTS
     # -------------------
@@ -321,9 +335,28 @@ class SchematicView(QGraphicsView):
         dot.setBrush(QColor(0, 0, 0))
         dot.setZValue(0.6)
 
+        # ADD THESE FLAGS
+        dot.setFlags(QGraphicsEllipseItem.ItemIsSelectable)
+
         self.scene.addItem(dot)
         self.junctions.append(dot)
-        return dot  # Return the new item to be tracked by Undo
+        return dot
+
+    def cleanup_junctions(self):
+        """Removes junctions that are no longer connected to any wires."""
+        to_remove = []
+        for j in self.junctions:
+            pos = j.scenePos()
+            # Check if any wire endpoint matches this junction position
+            connected_wires = [item for item in self.scene.items(pos)
+                               if isinstance(item, WireSegmentItem)]
+
+            if len(connected_wires) < 2:  # Junctions need at least 2 wires to exist
+                to_remove.append(j)
+
+        for j in to_remove:
+            self.scene.removeItem(j)
+            self.junctions.remove(j)
 
     def highlight_net(self, net_id):
         for wire in self.net_map.get(net_id, []):
