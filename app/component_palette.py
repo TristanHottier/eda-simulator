@@ -1,68 +1,89 @@
+# app/component_palette.py
+from typing import TYPE_CHECKING
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFrame
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QPointF
+from core.component import Component
+from ui.component_item import ComponentItem
+
+if TYPE_CHECKING:
+    from ui.schematic_view import SchematicView
 
 
 class ComponentPalette(QWidget):
-    def __init__(self, schematic_view):
+    """
+    Side panel for selecting tools and adding components to the schematic.
+    """
+
+    def __init__(self, schematic_view: 'SchematicView'):
         super().__init__()
         self.schematic_view = schematic_view
 
         layout = QVBoxLayout()
         self.setLayout(layout)
 
-        # Tool section
-        layout.addWidget(QLabel("Tools"))
+        # --- Tool Section ---
+        layout.addWidget(QLabel("<b>Tools</b>"))
         self.select_tool_btn = QPushButton("Select/Move")
         self.wire_tool_btn = QPushButton("Wire Tool")
-        layout.addWidget(self.select_tool_btn)
-        layout.addWidget(self.wire_tool_btn)
 
-        self.select_tool_btn.setCheckable(True)
-        self.wire_tool_btn.setCheckable(True)
+        for btn in [self.select_tool_btn, self.wire_tool_btn]:
+            btn.setCheckable(True)
+            layout.addWidget(btn)
+
         self.select_tool_btn.setChecked(True)
-
-        # Connect buttons
-        self.select_tool_btn.clicked.connect(self.activate_select_tool)
-        self.wire_tool_btn.clicked.connect(self.activate_wire_tool)
+        self.select_tool_btn.clicked.connect(lambda: self._set_tool_mode("component"))
+        self.wire_tool_btn.clicked.connect(lambda: self._set_tool_mode("wire"))
 
         # Separator
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setFrameShadow(QFrame.Sunken)
-        layout.addWidget(separator)
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line)
 
-        # Component section
-        layout.addWidget(QLabel("Components"))
-        for comp_type in ["Resistor", "Capacitor", "LED"]:
+        # --- Component Section ---
+        layout.addWidget(QLabel("<b>Components</b>"))
+        component_types = ["Resistor", "Capacitor", "LED"]
+        for comp_type in component_types:
             btn = QPushButton(comp_type)
+            # Use default argument in lambda to capture the current string value
+            btn.clicked.connect(lambda checked, t=comp_type: self.add_component(t))
             layout.addWidget(btn)
-            btn.clicked.connect(lambda checked, c=comp_type: self.add_component(c))
 
-        # --------------------------
-        # Tool functions
-        # --------------------------
+        layout.addStretch()
 
-    def activate_select_tool(self):
-        self.select_tool_btn.setChecked(True)
-        self.wire_tool_btn.setChecked(False)
-        self.schematic_view.select_tool_active = True
-        self.schematic_view.wire_tool_active = False
-        self.schematic_view.setCursor(Qt.ArrowCursor)
-        self.schematic_view.mode = "component"
+    def _set_tool_mode(self, mode: str) -> None:
+        """Synchronizes UI buttons and SchematicView state."""
+        self.schematic_view.mode = mode
 
-    def activate_wire_tool(self):
-        self.select_tool_btn.setChecked(False)
-        self.wire_tool_btn.setChecked(True)
-        self.schematic_view.select_tool_active = False
-        self.schematic_view.wire_tool_active = True
-        self.schematic_view.setCursor(Qt.CrossCursor)
-        self.schematic_view.drawing_wire = False  # reset in case leftover
-        self.schematic_view.mode = "wire"
+        # Update Button states
+        self.select_tool_btn.setChecked(mode == "component")
+        self.wire_tool_btn.setChecked(mode == "wire")
 
-        # --------------------------
-        # Component placement
-        # --------------------------
+        # Update Cursor
+        cursor = Qt.ArrowCursor if mode == "component" else Qt.CrossCursor
+        self.schematic_view.setCursor(cursor)
 
-    def add_component(self, comp_type):
-        ref = f"{comp_type[0]}{len(self.schematic_view.components) + 1}"
-        self.schematic_view.add_component(ref, comp_type)
+        # Reset wire tool state if switching away
+        if mode != "wire":
+            self.schematic_view.drawing_wire = False
+
+    def add_component(self, comp_type: str) -> None:
+        """Instantiates a new component at the center of the current view."""
+        # Create logical model
+        ref_prefix = comp_type[0].upper()
+        existing_count = sum(1 for c in self.schematic_view.components if c.type == comp_type.lower())
+        ref_designator = f"{ref_prefix}{existing_count + 1}"
+
+        model = Component(ref=ref_designator, comp_type=comp_type.lower())
+        self.schematic_view.components.append(model)
+
+        # Create visual item
+        item = ComponentItem(model)
+
+        # Place in center of visible area, snapped to grid
+        view_center = self.schematic_view.mapToScene(self.schematic_view.viewport().rect().center())
+        snapped_x = round(view_center.x() / 50) * 50
+        snapped_y = round(view_center.y() / 50) * 50
+
+        item.setPos(QPointF(snapped_x, snapped_y))
+        self.schematic_view.scene().addItem(item)
