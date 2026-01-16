@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QGraphicsLineItem, QGraphicsItem
 from PySide6.QtGui import QPen, QColor, QPainterPath, QPainterPathStroker
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QPointF
 
 
 class WireSegmentItem(QGraphicsLineItem):
@@ -11,11 +11,15 @@ class WireSegmentItem(QGraphicsLineItem):
         self.net_id = net_id
         self.preview = preview
         self.is_highlighted = False
+        self.start_node = None  # Can be a PinItem or JunctionItem
+        self.end_node = None
 
         # Selection Setup
         if not self.preview:
-            # ItemIsSelectable allows the item to be part of scene.selectedItems()
-            self.setFlags(QGraphicsItem.ItemIsSelectable)
+            # ItemIsSelectable allows the item to be part of _scene.selectedItems()
+            self.setFlags(QGraphicsItem.ItemIsSelectable |
+                          QGraphicsItem.ItemIsMovable |
+                          QGraphicsItem.ItemSendsGeometryChanges)
             # FIX: Must allow LeftButton for selection to work
             self.setAcceptedMouseButtons(Qt.LeftButton)
 
@@ -43,6 +47,14 @@ class WireSegmentItem(QGraphicsLineItem):
         stroker.setWidth(10)  # Clickable area is 10px wide
         stroker.setCapStyle(Qt.RoundCap)
         return stroker.createStroke(path)
+
+    def itemChange(self, change, value):
+        if change == QGraphicsItem.ItemPositionChange and self.scene():
+            new_pos = value
+            x = round(new_pos.x() / 50) * 50
+            y = round(new_pos.y() / 50) * 50
+            return QPointF(x, y)
+        return super().itemChange(change, value)
 
     def paint(self, painter, option, widget):
         """Override paint to handle the selection highlight."""

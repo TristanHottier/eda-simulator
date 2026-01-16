@@ -15,5 +15,5 @@ class PinItem(QGraphicsEllipseItem):
         self.setZValue(1)
 
     def scene_connection_point(self):
-        """Returns the center of the pin in scene coordinates."""
+        """Returns the center of the pin in _scene coordinates."""
         return self.mapToScene(QPointF(0, 0))

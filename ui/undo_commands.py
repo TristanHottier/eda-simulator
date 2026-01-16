@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QGraphicsEllipseItem
 
+from ui.junction_item import JunctionItem
 from ui.wire_segment_item import WireSegmentItem
 
 
@@ -78,38 +79,74 @@ class RotateComponentCommand:
         self.component_item.setRotation(self.new_rotation)
 
 
+# ui/undo_commands.py
+
 class CreateWireCommand:
-    def __init__(self, schematic_view, created_items, net_history_snapshot):
-        self.view = schematic_view
-        self.items = created_items  # This list now contains WireSegmentItems AND QGraphicsEllipseItems
-        self.net_history = net_history_snapshot
+    # Add start_junction to the end of the argument list with a default of None
+    def __init__(self, view, x1, y1, x2, y2, net_id, start_node=None, end_node=None, junction=None,
+                 start_junction=None):
+        self.view = view
+        self.wire_coords = (x1, y1, x2, y2)
+        self.net_id = net_id
+        self.start_node = start_node
+        self.end_node = end_node
 
-    def undo(self):
-        # 1. Remove all visual items from the scene
-        for item in self.items:
-            self.view.scene.removeItem(item)
+        # We store both potential junctions
+        self.end_junction = junction
+        self.start_junction = start_junction
 
-            # 2. If the item is a junction, remove it from the tracking list
-            if item in self.view.junctions:
-                self.view.junctions.remove(item)
-
-        # 3. Revert the net mapping
-        self.view.point_to_net = self.net_history.copy()
+        self.wire_item = None
 
     def redo(self):
-        # 1. Add everything back to the scene
-        for item in self.items:
-            self.view.scene.addItem(item)
+        from ui.wire_segment_item import WireSegmentItem
+        x1, y1, x2, y2 = self.wire_coords
+        self.wire_item = WireSegmentItem(x1, y1, x2, y2, self.net_id)
 
-            # 2. Put junctions back into the tracking list
-            if isinstance(item, QGraphicsEllipseItem) and item not in self.view.junctions:
-                self.view.junctions.append(item)
+        # 1. Add wire to scene (Note: calling the scene method)
+        scene = self.view.scene()
+        scene.addItem(self.wire_item)
 
-            # 3. Re-register net points for wire segments
-            if isinstance(item, WireSegmentItem):
-                line = item.line()
-                self.view.point_to_net[(line.x1(), line.y1())] = item.net_id
-                self.view.point_to_net[(line.x2(), line.y2())] = item.net_id
+        if self.wire_item not in self.view.wires:
+            self.view.wires.append(self.wire_item)
+
+        # 2. Add junctions to scene and logical tracking
+        for j in [self.start_junction, self.end_junction]:
+            if j:
+                if j.scene() is None:
+                    scene.addItem(j)
+                if j not in self.view.junctions:
+                    self.view.junctions.append(j)
+
+        # 3. Register wire with all connected nodes for stretching
+        nodes = [self.start_node, self.end_node, self.start_junction, self.end_junction]
+        for node in nodes:
+            if node and hasattr(node, 'connected_wires'):
+                # FIX: Use .add() instead of .append() because connected_wires is a set
+                node.connected_wires.add(self.wire_item)
+
+    def undo(self):
+        scene = self.view.scene()
+
+        # 1. Cleanup logical links
+        nodes = [self.start_node, self.end_node, self.start_junction, self.end_junction]
+        if self.wire_item:
+            for node in nodes:
+                if node and hasattr(node, 'connected_wires'):
+                    # FIX: Use .discard() instead of .remove() for sets
+                    # (discard doesn't raise an error if the item is already gone)
+                    node.connected_wires.discard(self.wire_item)
+
+            # 2. Remove wire
+            scene.removeItem(self.wire_item)
+            if self.wire_item in self.view.wires:
+                self.view.wires.remove(self.wire_item)
+
+        # 3. Remove junctions
+        for j in [self.start_junction, self.end_junction]:
+            if j:
+                scene.removeItem(j)
+                if j in self.view.junctions:
+                    self.view.junctions.remove(j)
 
 
 class DeleteCommand:
@@ -119,7 +156,7 @@ class DeleteCommand:
 
         # Logical snapshots
         self.models = [item.model for item in items if hasattr(item, 'model')]
-        self.junction_items = [item for item in items if isinstance(item, QGraphicsEllipseItem)]
+        self.junction_items = [item for item in items if isinstance(item, JunctionItem)]
 
         # Wire data storage
         self.wire_data = []
@@ -130,7 +167,7 @@ class DeleteCommand:
 
     def redo(self):
         for item in self.items:
-            self.view.scene.removeItem(item)
+            self.view._scene.removeItem(item)
             # Remove from logical tracking
             if item in self.view.junctions:
                 self.view.junctions.remove(item)
@@ -143,7 +180,7 @@ class DeleteCommand:
 
     def undo(self):
         for item in self.items:
-            self.view.scene.addItem(item)
+            self.view._scene.addItem(item)
             # Restore to logical tracking
             if item in self.junction_items:
                 self.view.junctions.append(item)

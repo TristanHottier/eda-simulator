@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import QBrush, QColor
 from ui.undo_commands import MoveComponentCommand, RotateComponentCommand
 from ui.pin_item import PinItem
@@ -19,7 +19,8 @@ class ComponentItem(QGraphicsRectItem):
             QGraphicsRectItem.ItemIsSelectable |
             QGraphicsRectItem.ItemIsFocusable |
             QGraphicsRectItem.ItemIsMovable |
-            QGraphicsRectItem.ItemSendsScenePositionChanges  # Add this
+            QGraphicsRectItem.ItemSendsScenePositionChanges |
+            QGraphicsRectItem.ItemSendsGeometryChanges
         )
         # Set origin to center for clean rotation
         self.setTransformOriginPoint(width / 2, height / 2)
@@ -44,6 +45,15 @@ class ComponentItem(QGraphicsRectItem):
             (self.rect().width() - self.label.boundingRect().width()) / 2,
             -self.label.boundingRect().height() - 5
         )
+
+    def itemChange(self, change, value):
+        if change == QGraphicsRectItem.ItemPositionChange and self.scene():
+            # value is the new QPointF position
+            new_pos = value
+            x = round(new_pos.x() / self.GRID_SIZE) * self.GRID_SIZE
+            y = round(new_pos.y() / self.GRID_SIZE) * self.GRID_SIZE
+            return QPointF(x, y)
+        return super().itemChange(change, value)
 
     # --- Double-click to open parameter popup ---
     def mouseDoubleClickEvent(self, event):
@@ -83,21 +93,13 @@ class ComponentItem(QGraphicsRectItem):
         self.old_pos = self.pos()
 
     def mouseMoveEvent(self, event):
+        # Now we only need to handle the mode check;
+        # super().mouseMoveEvent() triggers the itemChange logic automatically
         view = self.scene().views()[0] if self.scene() and self.scene().views() else None
-
         if view and getattr(view, "mode", "component") == "wire":
-            # Ignore movement entirely in wire mode
             event.ignore()
             return
-
-        # Component mode: move item normally
         super().mouseMoveEvent(event)
-
-        # Snap to grid
-        pos = self.scenePos()
-        snapped_x = round(pos.x() / self.GRID_SIZE) * self.GRID_SIZE
-        snapped_y = round(pos.y() / self.GRID_SIZE) * self.GRID_SIZE
-        self.setPos(snapped_x, snapped_y)
 
     def mouseReleaseEvent(self, event):
         view = self.scene().views()[0] if self.scene() and self.scene().views() else None

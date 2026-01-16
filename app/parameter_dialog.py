@@ -57,7 +57,7 @@ class ParameterDialog(QDialog):
 
             old_val = self.component_model.parameters.get(key, None)
             if old_val != val:
-                view = self.component_item.scene().views()[0] if self.component_item.scene().views() else None
+                view = self.component_item._scene().views()[0] if self.component_item._scene().views() else None
                 if view and hasattr(view, "undo_stack"):
                     # FIX: Pass the MODEL first, then the ITEM for visual updates
                     view.undo_stack.push(ParameterChangeCommand(
