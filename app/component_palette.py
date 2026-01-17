@@ -1,7 +1,10 @@
-# app/component_palette.py
+# app/component_palette. py
 from typing import TYPE_CHECKING
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFrame
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QPushButton, QLabel, QFrame, QColorDialog
+)
 from PySide6.QtCore import Qt, QPointF
+from PySide6.QtGui import QColor
 from core.component import Component
 from ui.component_item import ComponentItem
 
@@ -49,6 +52,32 @@ class ComponentPalette(QWidget):
             btn.clicked.connect(lambda checked, t=comp_type: self.add_component(t))
             layout.addWidget(btn)
 
+        # Separator
+        line2 = QFrame()
+        line2.setFrameShape(QFrame.HLine)
+        line2.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line2)
+
+        # --- Wire Color Section ---
+        layout.addWidget(QLabel("<b>Wire Color</b>"))
+        self.wire_color_btn = QPushButton("Choose Color...")
+        self.wire_color_btn.clicked.connect(self._open_wire_color_dialog)
+        layout.addWidget(self.wire_color_btn)
+
+        # Color preview swatch
+        self.color_swatch = QFrame()
+        self.color_swatch.setFixedHeight(20)
+        # Initialize with schematic view's current wire color
+        initial_color = self.schematic_view.get_current_wire_color()
+        self._current_wire_color = initial_color
+        self.color_swatch.setStyleSheet(
+            f"background-color: {initial_color.name()}; border: 1px solid #888;"
+        )
+        layout.addWidget(self.color_swatch)
+
+        # Store current selected color
+        self._current_wire_color = QColor(255, 0, 0)
+
         layout.addStretch()
 
     def _set_tool_mode(self, mode: str) -> None:
@@ -87,3 +116,35 @@ class ComponentPalette(QWidget):
 
         item.setPos(QPointF(snapped_x, snapped_y))
         self.schematic_view.scene().addItem(item)
+
+    def _open_wire_color_dialog(self) -> None:
+        """Opens a color picker dialog and applies the color to selected wires."""
+        # Get current color from schematic view
+        initial_color = self.schematic_view.get_current_wire_color()
+
+        color = QColorDialog.getColor(
+            initial_color,
+            self,
+            "Select Wire Color"
+        )
+
+        if color.isValid():
+            self._current_wire_color = color
+            # Update the swatch preview
+            self.color_swatch.setStyleSheet(
+                f"background-color: {color.name()}; border: 1px solid #888;"
+            )
+            # Apply to selected wires and set as current color for new wires
+            self.schematic_view.set_selected_wire_color_qcolor(color)
+
+    def get_current_wire_color(self) -> QColor:
+        """Returns the currently selected wire color."""
+        return self._current_wire_color
+
+    def update_color_swatch(self) -> None:
+        """Updates the color swatch to match the schematic view's current wire color."""
+        color = self.schematic_view.get_current_wire_color()
+        self._current_wire_color = color
+        self.color_swatch.setStyleSheet(
+            f"background-color: {color.name()}; border: 1px solid #888;"
+        )

@@ -73,5 +73,9 @@ class AppWindow(QMainWindow):
                 self.schematic_view.save_to_json()
             elif key == Qt.Key_O:
                 self.schematic_view.load_from_json()
+            elif key == Qt.Key_C:
+                self.schematic_view.copy_selection()
+            elif key == Qt.Key_V:
+                self.schematic_view.paste_selection()
         else:
             super().keyPressEvent(event)

@@ -119,49 +119,59 @@ class DeleteItemsCommand:
         self.junction_items = [item for item in items if isinstance(item, JunctionItem)]
         self.wire_snapshot = []
 
-        for item in items:
+        for item in self.items:
             if isinstance(item, WireSegmentItem):
                 line = item.line()
                 self.wire_snapshot.append(((line.x1(), line.y1()), (line.x2(), line.y2()), item.net_id))
 
     def redo(self):
+        # Remove items from the scene safely
         for item in self.items:
-            # FIX: Only remove if the item is actually in the scene
+            # Check if the item is still in the scene before removing
             if item.scene() == self.view._scene:
                 self.view._scene.removeItem(item)
 
+            # Handle junctions explicitly
             if item in self.view.junctions:
                 self.view.junctions.remove(item)
 
+        # Remove models from components safely
         for model in self.models:
             if model in self.view.components:
                 self.view.components.remove(model)
 
+        # Clean up junctions after deletions
         self.view.cleanup_junctions()
 
     def undo(self):
+        # Restore items to the scene safely
         for item in self.items:
-            # FIX: Only add if the item is not already in the scene
+            # Prevent adding duplicates to the scene
             if not item.scene():
                 self.view._scene.addItem(item)
 
+            # Restore junctions explicitly
             if item in self.junction_items and item not in self.view.junctions:
                 self.view.junctions.append(item)
 
+        # Restore models to components safely
         for model in self.models:
             if model not in self.view.components:
                 self.view.components.append(model)
 
-        # Restore wires into point_to_net mapping
+        # Restore wires to point_to_net mapping
         for (p1, p2, net_id) in self.wire_snapshot:
-            self.view.point_to_net[p1] = net_id
-            self.view.point_to_net[p2] = net_id
+            if p1 not in self.view.point_to_net:
+                self.view.point_to_net[p1] = net_id
+            if p2 not in self.view.point_to_net:
+                self.view.point_to_net[p2] = net_id
 
+        # Clean up junctions after restoration
         self.view.cleanup_junctions()
 
 
 # ui/undo_commands.py
-from PySide6.QtGui import QUndoCommand
+from PySide6.QtGui import QUndoCommand, QColor
 from PySide6.QtCore import QPointF
 
 
@@ -195,3 +205,122 @@ class MoveJunctionCommand(QUndoCommand):
             x2 = target_pos.x() if p2_aff else line.x2()
             y2 = target_pos.y() if p2_aff else line.y2()
             wire.setLine(x1, y1, x2, y2)
+
+
+class FlipComponentCommand:
+    """Handles horizontal or vertical flipping for component items."""
+
+    def __init__(self, component_item, axis: str):
+        """
+        Args:
+            component_item: The ComponentItem to flip.
+            axis: 'h' for horizontal flip, 'v' for vertical flip.
+        """
+        self.item = component_item
+        self.axis = axis
+
+    def undo(self):
+        # Flipping is its own inverse, so undo == redo
+        self._apply_flip()
+
+    def redo(self):
+        self._apply_flip()
+
+    def _apply_flip(self):
+        transform = self.item.transform()
+        if self.axis == 'h':
+            # Horizontal flip: mirror along Y-axis (negate X scale)
+            self.item.setTransform(transform.scale(-1, 1))
+        else:
+            # Vertical flip: mirror along X-axis (negate Y scale)
+            self.item.setTransform(transform.scale(1, -1))
+
+
+class PasteItemsCommand:
+    """Handles pasting of copied components and wires."""
+
+    def __init__(self, view: 'SchematicView', component_items: List, wire_items: List):
+        self.view = view
+        self.component_items = component_items
+        self.wire_items = wire_items
+        self.models = [item.model for item in component_items]
+
+    def redo(self):
+        # Add components to scene
+        for item in self.component_items:
+            if not item.scene():
+                self.view._scene.addItem(item)
+            item.setSelected(True)
+
+        # Add component models to tracking list
+        for model in self.models:
+            if model not in self.view.components:
+                self.view.components.append(model)
+
+        # Add wires to scene and register connections
+        for wire in self.wire_items:
+            if not wire.scene():
+                self.view._scene.addItem(wire)
+                self.view.register_wire_connection(wire)
+            wire.setSelected(True)
+
+        self.view.cleanup_junctions()
+
+        # Select junctions belonging to pasted wires
+        self._select_pasted_junctions()
+
+    def undo(self):
+        # Remove wires from scene
+        for wire in self.wire_items:
+            if wire.scene() == self.view._scene:
+                self.view._scene.removeItem(wire)
+
+        # Remove components from scene
+        for item in self.component_items:
+            if item.scene() == self.view._scene:
+                self.view._scene.removeItem(item)
+
+        # Remove models from tracking list
+        for model in self.models:
+            if model in self.view.components:
+                self.view.components.remove(model)
+
+        self.view.cleanup_junctions()
+
+    def _select_pasted_junctions(self):
+        """Selects all junctions that belong to the pasted wires."""
+        # Collect all endpoints of pasted wires
+        pasted_endpoints = set()
+        for wire in self.wire_items:
+            line = wire.line()
+            pasted_endpoints.add((line.x1(), line.y1()))
+            pasted_endpoints.add((line.x2(), line.y2()))
+
+        # Select junctions at those endpoints
+        for junction in self.view.junctions:
+            junction_pos = (junction.pos().x(), junction.pos().y())
+            if junction_pos in pasted_endpoints:
+                junction.setSelected(True)
+
+
+class WireColorChangeCommand:
+    """Handles wire color changes with undo/redo support."""
+
+    def __init__(self, wires: List, old_colors: List[QColor], new_color:  QColor):
+        """
+        Args:
+            wires: List of WireSegmentItem to change color.
+            old_colors: List of original QColors (same order as wires).
+            new_color:  The new QColor to apply.
+        """
+        self.wires = wires
+        self.old_colors = [QColor(c) for c in old_colors]  # Copy colors
+        self.new_color = QColor(new_color)
+
+    def undo(self):
+        for wire, old_color in zip(self.wires, self.old_colors):
+            wire.set_color(old_color)
+
+    def redo(self):
+        for wire in self.wires:
+            wire.set_color(self. new_color)

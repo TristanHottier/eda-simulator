@@ -1,41 +1,42 @@
-# ui/component_item.py
+# ui/component_item. py
 from typing import Optional, Any, List
 from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem
 from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import QBrush, QColor
-from ui.undo_commands import MoveComponentCommand, RotateComponentCommand
+from ui. undo_commands import MoveComponentCommand, RotateComponentCommand
 from ui.pin_item import PinItem  # Ensure PinItem is imported
 
 
 class ComponentItem(QGraphicsRectItem):
     GRID_SIZE = 50
-    UNIT_MAP = {"resistance": "Ω", "capacitance": "nF", "voltage_drop": "V", "inductance" : "mH"}
+    UNIT_MAP = {"resistance": "Ω", "capacitance": "nF", "voltage_drop": "V", "inductance": "mH"}
 
-    def __init__(self, component_model, width: int = 100, height: int = 50):
+    def __init__(self, component_model, width:  int = 100, height: int = 50):
         super().__init__(0, 0, width, height)
         self.model = component_model
-        self.ref: str = self.model.ref
+        self.ref:  str = self.model.ref
         self.old_pos: Optional[QPointF] = None
+        self._is_being_moved_by_master = False  # Flag to prevent recursive snapping
 
         # --- Flags ---
         self.setFlags(
             QGraphicsItem.ItemIsSelectable |
             QGraphicsItem.ItemIsFocusable |
             QGraphicsItem.ItemIsMovable |
-            QGraphicsItem.ItemSendsScenePositionChanges |
+            QGraphicsItem. ItemSendsScenePositionChanges |
             QGraphicsItem.ItemSendsGeometryChanges
         )
 
         # Set origin to center for clean rotation
         self.setTransformOriginPoint(width / 2, height / 2)
-        self.setAcceptedMouseButtons(Qt.LeftButton)
+        self.setAcceptedMouseButtons(Qt. LeftButton)
 
         # --- Visuals ---
         self.setBrush(QBrush(QColor("#ffeeaa")))
         self.setPen(QColor("black"))
 
         # --- Label ---
-        self.label = QGraphicsTextItem("", self)
+        self. label = QGraphicsTextItem("", self)
         self.refresh_label()
 
         # --- FIX: Restore Pins ---
@@ -44,18 +45,18 @@ class ComponentItem(QGraphicsRectItem):
         for pin_logic in self.model.pins:
             # pin_logic provides rel_x and rel_y (offsets from component origin)
             p_item = PinItem(pin_logic, pin_logic.rel_x, pin_logic.rel_y, self)
-            self.pin_items.append(p_item)
+            self.pin_items. append(p_item)
 
     def refresh_label(self) -> None:
         """Updates the text label based on current model parameters."""
         main_key = next(
-            (k for k in self.UNIT_MAP.keys() if k in self.model.parameters),
+            (k for k in self. UNIT_MAP.keys() if k in self.model.parameters),
             None
         )
 
         if main_key:
-            val = self.model.parameters[main_key]
-            unit = self.UNIT_MAP.get(main_key, "")
+            val = self.model. parameters[main_key]
+            unit = self.UNIT_MAP. get(main_key, "")
             text = f"{self.ref} {val}{unit}"
         else:
             text = self.ref
@@ -66,7 +67,7 @@ class ComponentItem(QGraphicsRectItem):
     def update_label_position(self) -> None:
         """Centers the label above the component."""
         rect = self.rect()
-        label_rect = self.label.boundingRect()
+        label_rect = self. label.boundingRect()
         self.label.setPos(
             (rect.width() - label_rect.width()) / 2,
             -label_rect.height() - 5
@@ -78,19 +79,69 @@ class ComponentItem(QGraphicsRectItem):
         y = round(pos.y() / self.GRID_SIZE) * self.GRID_SIZE
         return QPointF(x, y)
 
+    def _is_master_component(self) -> bool:
+        """
+        Check if this component is the 'master' (first ComponentItem in selection).
+        Only the master should handle moving junctions to avoid duplicate movements.
+        """
+        if not self.scene():
+            return False
+
+        for item in self.scene().selectedItems():
+            if isinstance(item, ComponentItem):
+                # Return True only if this component is the first one found
+                return item is self
+        return False
+
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: Any) -> Any:
         """Forces the item to snap to the grid in real-time during movement."""
-        if change == QGraphicsItem.ItemPositionChange and self.scene():
-            return self._snap_to_grid(value)
+        if change == QGraphicsItem.ItemPositionChange and self. scene():
+            # If being moved as part of a multi-selection by another master, don't snap
+            if self._is_being_moved_by_master:
+                return value
+
+            old_pos = self.pos()
+            new_pos = self._snap_to_grid(value)
+
+            # Calculate the delta for this component (in 50px grid increments)
+            delta = new_pos - old_pos
+
+            # Only the master component should move junctions to avoid duplicate movements
+            if (delta. x() != 0 or delta.y() != 0) and self._is_master_component():
+                self._move_selected_junctions_proportionally(delta)
+
+            return new_pos
         return super().itemChange(change, value)
 
+    def _move_selected_junctions_proportionally(self, component_delta: QPointF) -> None:
+        """
+        When a component moves by delta on 50px grid, move selected junctions
+        by the same absolute delta to maintain relative spacing.
+        Component moves 1 increment (50px) -> Junction moves 5 increments (5*10px = 50px)
+        """
+        from ui.junction_item import JunctionItem
+
+        if not self.scene():
+            return
+
+        selected_items = self.scene().selectedItems()
+
+        for item in selected_items:
+            if isinstance(item, JunctionItem):
+                # Set flag to prevent junction's own snapping logic from interfering
+                item._is_being_moved_by_master = True
+                # Move junction by the same absolute delta (preserving relative spacing)
+                item.setPos(item.pos() + component_delta)
+                item._is_being_moved_by_master = False
+
     def mousePressEvent(self, event) -> None:
-        self.old_pos = self.scenePos()
+        # FIX: Use pos() instead of scenePos() to be consistent with itemChange snapping
+        self. old_pos = self.pos()
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:
-        # Register movement in undo stack
-        new_pos = self.scenePos()
+        # FIX: Use pos() instead of scenePos() to be consistent with itemChange snapping
+        new_pos = self. pos()
         if self.old_pos and self.old_pos != new_pos:
             view = self.scene().views()[0]
             if hasattr(view, "undo_stack"):
@@ -100,18 +151,18 @@ class ComponentItem(QGraphicsRectItem):
 
     def update_label_after_dialog(self, comp_model) -> None:
         """Public API to trigger a label refresh after model edits."""
-        self.model = comp_model
+        self. model = comp_model
         self.refresh_label()
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key_R:
-            old_rot = self.rotation()
+            old_rot = self. rotation()
             new_rot = (old_rot + 90) % 360
 
-            view = self.scene().views()[0]
+            view = self. scene().views()[0]
             if hasattr(view, "undo_stack"):
-                view.undo_stack.push(RotateComponentCommand(self, old_rot, new_rot))
+                view. undo_stack.push(RotateComponentCommand(self, old_rot, new_rot))
             else:
-                self.setRotation(new_rot)
+                self. setRotation(new_rot)
         else:
             super().keyPressEvent(event)

@@ -10,7 +10,7 @@ from ui.component_item import ComponentItem
 from ui.junction_item import JunctionItem
 from ui.pin_item import PinItem
 from ui.wire_segment_item import WireSegmentItem
-from ui.undo_commands import UndoStack, CreateWireCommand
+from ui.undo_commands import UndoStack, CreateWireCommand, DeleteItemsCommand, PasteItemsCommand, WireColorChangeCommand
 from ui.grid import GridItem
 
 
@@ -55,6 +55,11 @@ class SchematicView(QGraphicsView):
         self.drawing_wire = False
         self.wire_start_pos: Optional[QPointF] = None
         self.preview_wire: Optional[WireSegmentItem] = None
+
+        # --- Wire Color ---
+        self._current_wire_color = QColor(255, 0, 0)  # Default red
+
+        self.clipboard: Dict[str, Any] = {}
 
     def wheelEvent(self, event: QWheelEvent) -> None:
         """Handles zooming via the mouse scroll wheel."""
@@ -110,7 +115,12 @@ class SchematicView(QGraphicsView):
 
             self.drawing_wire = True
             self.wire_start_pos = pos
-            self.preview_wire = WireSegmentItem(pos.x(), pos.y(), pos.x(), pos.y(), preview=True)
+            # Create preview wire with current color
+            self.preview_wire = WireSegmentItem(
+                pos.x(), pos.y(), pos.x(), pos.y(),
+                preview=True,
+                color=self._current_wire_color
+            )
             self._scene.addItem(self.preview_wire)
         else:
             self._finalize_wire(pos)
@@ -123,13 +133,21 @@ class SchematicView(QGraphicsView):
         # Check if the endpoint lands on an existing wire to create a junction
         self._check_and_split_wire(end_pos)
 
-        new_wire = WireSegmentItem(self.wire_start_pos.x(), self.wire_start_pos.y(), end_pos.x(), end_pos.y())
+        # Create new wire with current color
+        new_wire = WireSegmentItem(
+            self.wire_start_pos.x(), self.wire_start_pos.y(),
+            end_pos.x(), end_pos.y(),
+            color=self._current_wire_color
+        )
         self.register_wire_connection(new_wire)
         self.undo_stack.push(CreateWireCommand(self, new_wire))
 
         self.wire_start_pos = end_pos
         if self.preview_wire:
-            self.preview_wire.setLine(self.wire_start_pos.x(), self.wire_start_pos.y(), end_pos.x(), end_pos.y())
+            self.preview_wire.setLine(
+                self.wire_start_pos.x(), self.wire_start_pos.y(),
+                end_pos.x(), end_pos.y()
+            )
 
     def _check_and_split_wire(self, pos: QPointF):
         """Detects if a point intersects a wire body and splits it to allow a junction."""
@@ -145,16 +163,19 @@ class SchematicView(QGraphicsView):
                 # Remove old wire endpoints
                 old_p1 = (p1.x(), p1.y())
                 old_p2 = (p2.x(), p2.y())
-                if old_p1 in self.point_to_net: del self.point_to_net[old_p1]
+                if old_p1 in self.point_to_net:  del self.point_to_net[old_p1]
                 if old_p2 in self.point_to_net: del self.point_to_net[old_p2]
+
+                # Preserve the original wire's color
+                original_color = item.color
 
                 # Split the wire into two segments meeting at 'pos'
                 self._scene.removeItem(item)
 
                 # Remove from net tracking before splitting
-                # (Simple approach: cleanup_junctions will fix the visuals)
-                w1 = WireSegmentItem(p1.x(), p1.y(), pos.x(), pos.y())
-                w2 = WireSegmentItem(pos.x(), pos.y(), p2.x(), p2.y())
+                # (Simple approach:  cleanup_junctions will fix the visuals)
+                w1 = WireSegmentItem(p1.x(), p1.y(), pos.x(), pos.y(), color=original_color)
+                w2 = WireSegmentItem(pos.x(), pos.y(), p2.x(), p2.y(), color=original_color)
 
                 self._scene.addItem(w1)
                 self._scene.addItem(w2)
@@ -300,6 +321,7 @@ class SchematicView(QGraphicsView):
         """
         Handles keyboard shortcuts.
         Esc: Cancels the current wire drawing chain.
+        Del : Deletes the selected item
         """
         if event.key() == Qt.Key_Escape:
             if self.drawing_wire:
@@ -307,6 +329,14 @@ class SchematicView(QGraphicsView):
             else:
                 # If not currently drawing, allow standard behavior (like deselecting)
                 super().keyPressEvent(event)
+        elif event.key() == Qt.Key_Delete:
+            # Retrieve selected items
+            selected_items = self.scene().selectedItems()
+
+            if selected_items:
+                # Create and execute a DeleteItemsCommand
+                delete_command = DeleteItemsCommand(self, selected_items)
+                self.undo_stack.push(delete_command)
         else:
             # Propagate other keys (like R for rotation) to the items or window
             super().keyPressEvent(event)
@@ -328,6 +358,50 @@ class SchematicView(QGraphicsView):
         # Optional: update the viewport to ensure the preview is cleared immediately
         self.viewport().update()
 
+    def set_selected_wire_color_qcolor(self, color: QColor) -> None:
+        """Changes the color of all selected wires using a QColor."""
+        selected_wires = [
+            item for item in self.scene().selectedItems()
+            if isinstance(item, WireSegmentItem) and not item.preview
+        ]
+
+        # Always update the current wire color for new wires
+        self._current_wire_color = QColor(color)
+
+        if not selected_wires:
+            # No wires selected, just update the current color for future wires
+            return
+
+        # Capture old colors for undo
+        old_colors = [wire.color for wire in selected_wires]
+
+        # Push command to undo stack
+        self.undo_stack.push(WireColorChangeCommand(selected_wires, old_colors, color))
+
+    def get_current_wire_color(self) -> QColor:
+        """Returns the current wire color for new wires."""
+        return self._current_wire_color
+
+    def set_current_wire_color(self, color: QColor) -> None:
+        """Sets the current wire color for new wires."""
+        self._current_wire_color = QColor(color)
+
+    def get_snapping_grid_size(self):
+        """
+        Determines the snapping grid size based on the selection.
+        Returns:
+            int: The grid size (10px or 50px).
+        """
+        selected_items = self.scene().selectedItems()
+
+        # Check if at least one component is selected
+        for item in selected_items:
+            if isinstance(item, ComponentItem):
+                return 50  # Snap to 50px grid
+
+        # If no components are selected, snap to 10px grid
+        return 10
+
     def load_from_json(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open Schematic", "", "JSON Files (*.json)")
         if not path: return
@@ -346,6 +420,168 @@ class SchematicView(QGraphicsView):
             item.setRotation(c_data.get("rotation", 0))
             self._scene.addItem(item)
         for w_data in data.get("wires", []):
-            wire = WireSegmentItem(w_data["x1"], w_data["y1"], w_data["x2"], w_data["y2"], net_id=w_data["net_id"])
+            color = QColor(w_data.get("color", "#ff0000")) if w_data.get("color") else None
+            wire = WireSegmentItem(
+                w_data["x1"], w_data["y1"], w_data["x2"], w_data["y2"],
+                net_id=w_data["net_id"],
+                color=color
+            )
             self._scene.addItem(wire)
             self.register_wire_connection(wire)
+
+    def save_to_json(self):
+        """Saves the current schematic to a JSON file."""
+        path, _ = QFileDialog.getSaveFileName(self, "Save Schematic", "", "JSON Files (*.json)")
+        if not path:
+            return
+
+        # Collect component data
+        components_data = []
+        for item in self._scene.items():
+            if isinstance(item, ComponentItem):
+                components_data.append({
+                    "ref": item.model.ref,
+                    "comp_type": item.model.type,
+                    "x": item.pos().x(),
+                    "y": item.pos().y(),
+                    "rotation": item.rotation(),
+                    "parameters": item.model.parameters
+                })
+
+        # Collect wire data
+        wires_data = []
+        for item in self._scene.items():
+            if isinstance(item, WireSegmentItem) and not item.preview:
+                line = item.line()
+                wires_data.append({
+                    "x1": line.x1(),
+                    "y1": line.y1(),
+                    "x2": line.x2(),
+                    "y2": line.y2(),
+                    "net_id": item.net_id,
+                    "color": item.color_hex  # Save as hex string
+                })
+
+        # Build the final data structure
+        data = {
+            "version": "0.1",
+            "components": components_data,
+            "wires": wires_data
+        }
+
+        # Write to file
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=2)
+
+    def copy_selection(self):
+        """Copies the currently selected components and wires to the clipboard."""
+        selected = self.scene().selectedItems()
+
+        if not selected:
+            return
+
+        components_data = []
+        wires_data = []
+
+        for item in selected:
+            if isinstance(item, ComponentItem):
+                components_data.append({
+                    "ref": item.model.ref,
+                    "comp_type": item.model.type,
+                    "x": item.pos().x(),
+                    "y": item.pos().y(),
+                    "rotation": item.rotation(),
+                    "parameters": dict(item.model.parameters)
+                })
+            elif isinstance(item, WireSegmentItem) and not item.preview:
+                line = item.line()
+                wires_data.append({
+                    "x1": line.x1(),
+                    "y1": line.y1(),
+                    "x2": line.x2(),
+                    "y2": line.y2(),
+                    "net_id": item.net_id,
+                    "color": item.color_hex  # Copy as hex string
+                })
+
+        self.clipboard = {
+            "components": components_data,
+            "wires": wires_data
+        }
+
+    def paste_selection(self):
+        """Pastes items from the clipboard with an offset."""
+        if not self.clipboard:
+            return
+
+        PASTE_OFFSET = 50  # Offset to avoid pasting directly on top
+
+        # Clear current selection
+        for item in self.scene().selectedItems():
+            item.setSelected(False)
+
+        new_component_items = []
+        new_wire_items = []
+
+        # Generate unique reference counters
+        existing_refs = {item.model.ref for item in self._scene.items() if isinstance(item, ComponentItem)}
+
+        # Paste components
+        for c_data in self.clipboard.get("components", []):
+            # Generate a unique reference
+            base_ref = c_data["ref"].rstrip("0123456789")
+            counter = 1
+            new_ref = f"{base_ref}{counter}"
+            while new_ref in existing_refs:
+                counter += 1
+                new_ref = f"{base_ref}{counter}"
+            existing_refs.add(new_ref)
+
+            # Create new model and item
+            model = Component(
+                new_ref,
+                comp_type=c_data["comp_type"],
+                parameters=dict(c_data.get("parameters", {}))
+            )
+            self.components.append(model)
+
+            item = ComponentItem(model)
+            item.setPos(c_data["x"] + PASTE_OFFSET, c_data["y"] + PASTE_OFFSET)
+            item.setRotation(c_data.get("rotation", 0))
+            item.setSelected(True)
+            new_component_items.append(item)
+
+        # Paste wires
+        for w_data in self.clipboard.get("wires", []):
+            color = QColor(w_data.get("color", "#ff0000")) if w_data.get("color") else None
+            wire = WireSegmentItem(
+                w_data["x1"] + PASTE_OFFSET,
+                w_data["y1"] + PASTE_OFFSET,
+                w_data["x2"] + PASTE_OFFSET,
+                w_data["y2"] + PASTE_OFFSET,
+                color=color
+            )
+            wire.setSelected(True)
+            new_wire_items.append(wire)
+
+        # Execute paste via undo command
+        if new_component_items or new_wire_items:
+            self.undo_stack.push(PasteItemsCommand(self, new_component_items, new_wire_items))
+
+            # Select all junctions that were created for the pasted wires
+            self._select_pasted_junctions(new_wire_items)
+
+    def _select_pasted_junctions(self, pasted_wires: List[WireSegmentItem]):
+        """Selects all junctions that belong to the pasted wires."""
+        # Collect all endpoints of pasted wires
+        pasted_endpoints = set()
+        for wire in pasted_wires:
+            line = wire.line()
+            pasted_endpoints.add((line.x1(), line.y1()))
+            pasted_endpoints.add((line.x2(), line.y2()))
+
+        # Select junctions at those endpoints
+        for junction in self.junctions:
+            junction_pos = (junction.pos().x(), junction.pos().y())
+            if junction_pos in pasted_endpoints:
+                junction.setSelected(True)
