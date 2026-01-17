@@ -124,6 +124,7 @@ class SchematicView(QGraphicsView):
         self._check_and_split_wire(end_pos)
 
         new_wire = WireSegmentItem(self.wire_start_pos.x(), self.wire_start_pos.y(), end_pos.x(), end_pos.y())
+        self.register_wire_connection(new_wire)
         self.undo_stack.push(CreateWireCommand(self, new_wire))
 
         self.wire_start_pos = end_pos
@@ -141,6 +142,12 @@ class SchematicView(QGraphicsView):
                 if pos == p1 or pos == p2:
                     continue
 
+                # Remove old wire endpoints
+                old_p1 = (p1.x(), p1.y())
+                old_p2 = (p2.x(), p2.y())
+                if old_p1 in self.point_to_net: del self.point_to_net[old_p1]
+                if old_p2 in self.point_to_net: del self.point_to_net[old_p2]
+
                 # Split the wire into two segments meeting at 'pos'
                 self._scene.removeItem(item)
 
@@ -157,14 +164,14 @@ class SchematicView(QGraphicsView):
                 break
 
     def register_wire_connection(self, wire: WireSegmentItem):
-        """Registers endpoints and merges nets if wires connect two different nets."""
+        """Registers endpoints and ensures junction items exist at both ends."""
         p1 = (wire.line().x1(), wire.line().y1())
         p2 = (wire.line().x2(), wire.line().y2())
 
+        # Logic for Net assignment
         net1 = self.point_to_net.get(p1)
         net2 = self.point_to_net.get(p2)
 
-        # Determine target net and merge if necessary
         if net1 and net2 and net1 != net2:
             self._merge_nets(net1, net2)
             target_net = net1
@@ -174,15 +181,91 @@ class SchematicView(QGraphicsView):
                 self.next_net_id += 1
 
         wire.net_id = target_net
-        for pt in [p1, p2]:
-            self.point_to_net[pt] = target_net
 
+        # Register the points in the mapping
+        self.point_to_net[p1] = target_net
+        self.point_to_net[p2] = target_net
+
+        # Update net tracking
         if target_net not in self.net_to_wires:
             self.net_to_wires[target_net] = []
         if wire not in self.net_to_wires[target_net]:
             self.net_to_wires[target_net].append(wire)
 
+        # Refresh visual junction dots
         self.cleanup_junctions()
+
+    def _stretch_wires_at(self, old_pos: QPointF, new_pos: QPointF):
+        """
+        Updates wires visually during a drag.
+        Fix: Updates permanent wire geometry and anchors the preview wire.
+        """
+        old_pt = (old_pos.x(), old_pos.y())
+        new_pt = (new_pos.x(), new_pos.y())
+
+        for item in self._scene.items():
+            if isinstance(item, WireSegmentItem) and not item.preview:
+                line = item.line()
+                p1 = line.p1()
+                p2 = line.p2()
+                changed = False
+
+                # 1. Update permanent wire geometry (Erase old / Draw new)
+                if p1 == old_pos:
+                    p1 = new_pos
+                    changed = True
+                if p2 == old_pos:
+                    p2 = new_pos
+                    changed = True
+
+                if changed:
+                    # This call triggers the visual update/erase of the old line
+                    item.setLine(p1.x(), p1.y(), p2.x(), p2.y())
+
+                    # Update logical net mapping
+                    if old_pt in self.point_to_net:
+                        net_id = self.point_to_net.get(old_pt)
+                        # We use setdefault or simple assignment to ensure the new point is mapped
+                        self.point_to_net[new_pt] = net_id
+
+        # 2. Update the preview wire anchor (The wire being currently drawn)
+        if self.drawing_wire and self.preview_wire:
+            if self.wire_start_pos == old_pos:
+                self.wire_start_pos = new_pos
+
+            current_line = self.preview_wire.line()
+            # Anchor (p1) follows the junction, head (p2) stays at current mouse snap
+            self.preview_wire.setLine(
+                self.wire_start_pos.x(),
+                self.wire_start_pos.y(),
+                current_line.x2(),
+                current_line.y2()
+            )
+
+    def cleanup_junctions(self):
+        """
+        Ensures exactly one JunctionItem exists at every wire endpoint coordinate.
+        """
+        # 1. Clear existing junctions from the scene
+        for j in self.junctions:
+            if j.scene():
+                self._scene.removeItem(j)
+        self.junctions.clear()
+
+        # 2. Identify all unique endpoints currently in use by wires
+        active_points = set()
+        for item in self._scene.items():
+            if isinstance(item, WireSegmentItem) and not item.preview:
+                line = item.line()
+                active_points.add((line.x1(), line.y1()))
+                active_points.add((line.x2(), line.y2()))
+
+        # 3. Create one junction dot per unique coordinate
+        # This naturally handles "sharing" because a set only stores unique values
+        for pt in active_points:
+            j = JunctionItem(pt[0], pt[1])
+            self.junctions.append(j)
+            self._scene.addItem(j)
 
     def _merge_nets(self, net_keep: int, net_remove: int):
         """Unifies two nets into one when they are connected by a new wire."""
@@ -244,18 +327,6 @@ class SchematicView(QGraphicsView):
 
         # Optional: update the viewport to ensure the preview is cleared immediately
         self.viewport().update()
-
-    def cleanup_junctions(self):
-        for j in self.junctions: self._scene.removeItem(j)
-        self.junctions.clear()
-        counts = {}
-        for pt, net_id in self.point_to_net.items():
-            counts[pt] = counts.get(pt, 0) + 1
-        for pt, count in counts.items():
-            if count >= 3:
-                j = JunctionItem(pt[0], pt[1])
-                self.junctions.append(j)
-                self._scene.addItem(j)
 
     def load_from_json(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open Schematic", "", "JSON Files (*.json)")

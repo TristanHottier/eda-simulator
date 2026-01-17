@@ -13,6 +13,7 @@ class Component:
         "resistor": {"resistance": 1000, "type": "resistor"},
         "capacitor": {"capacitance": 1, "type": "capacitor"},
         "led": {"voltage_drop": 2.0, "type": "led"},
+        "inductor" : {"inductance": 100, "type": "inductor"},
         "generic": {"type": "generic"}
     }
 

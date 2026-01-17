@@ -72,12 +72,16 @@ class CreateWireCommand:
         self.wire = wire_item
 
     def undo(self):
-        self.view._scene.removeItem(self.wire)
+        # FIX: Only remove if the item is actually in the scene
+        if self.wire.scene() == self.view._scene:
+            self.view._scene.removeItem(self.wire)
         # Net cleanup is handled dynamically by SchematicView
         self.view.cleanup_junctions()
 
     def redo(self):
-        self.view._scene.addItem(self.wire)
+        # FIX: Only add if the item is not already in the scene
+        if not self.wire.scene():
+            self.view._scene.addItem(self.wire)
         self.view.register_wire_connection(self.wire)
 
 
@@ -111,8 +115,6 @@ class DeleteItemsCommand:
 
         self.view = view
         self.items = items
-
-        # Snapshot logical models and wires for restoration
         self.models = [item.model for item in items if hasattr(item, 'model')]
         self.junction_items = [item for item in items if isinstance(item, JunctionItem)]
         self.wire_snapshot = []
@@ -124,7 +126,10 @@ class DeleteItemsCommand:
 
     def redo(self):
         for item in self.items:
-            self.view._scene.removeItem(item)
+            # FIX: Only remove if the item is actually in the scene
+            if item.scene() == self.view._scene:
+                self.view._scene.removeItem(item)
+
             if item in self.view.junctions:
                 self.view.junctions.remove(item)
 
@@ -136,12 +141,16 @@ class DeleteItemsCommand:
 
     def undo(self):
         for item in self.items:
-            self.view._scene.addItem(item)
-            if item in self.junction_items:
+            # FIX: Only add if the item is not already in the scene
+            if not item.scene():
+                self.view._scene.addItem(item)
+
+            if item in self.junction_items and item not in self.view.junctions:
                 self.view.junctions.append(item)
 
         for model in self.models:
-            self.view.components.append(model)
+            if model not in self.view.components:
+                self.view.components.append(model)
 
         # Restore wires into point_to_net mapping
         for (p1, p2, net_id) in self.wire_snapshot:
@@ -149,3 +158,40 @@ class DeleteItemsCommand:
             self.view.point_to_net[p2] = net_id
 
         self.view.cleanup_junctions()
+
+
+# ui/undo_commands.py
+from PySide6.QtGui import QUndoCommand
+from PySide6.QtCore import QPointF
+
+
+class MoveJunctionCommand(QUndoCommand):
+    """
+    Groups the movement of a junction and the stretching of
+    all connected wires into one undo/redo action.
+    """
+
+    def __init__(self, junction, old_pos, new_pos, affected_wires):
+        super().__init__("Move Junction")
+        self.junction = junction
+        self.old_pos = old_pos
+        self.new_pos = new_pos
+        # List of tuples: (wire_item, is_p1_affected, is_p2_affected)
+        self.affected_wires = affected_wires
+
+    def redo(self):
+        self.junction.setPos(self.new_pos)
+        self._update_wires(self.new_pos)
+
+    def undo(self):
+        self.junction.setPos(self.old_pos)
+        self._update_wires(self.old_pos)
+
+    def _update_wires(self, target_pos):
+        for wire, p1_aff, p2_aff in self.affected_wires:
+            line = wire.line()
+            x1 = target_pos.x() if p1_aff else line.x1()
+            y1 = target_pos.y() if p1_aff else line.y1()
+            x2 = target_pos.x() if p2_aff else line.x2()
+            y2 = target_pos.y() if p2_aff else line.y2()
+            wire.setLine(x1, y1, x2, y2)

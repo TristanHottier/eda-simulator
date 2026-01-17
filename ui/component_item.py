@@ -9,7 +9,7 @@ from ui.pin_item import PinItem  # Ensure PinItem is imported
 
 class ComponentItem(QGraphicsRectItem):
     GRID_SIZE = 50
-    UNIT_MAP = {"resistance": "Ω", "capacitance": "nF", "voltage_drop": "V"}
+    UNIT_MAP = {"resistance": "Ω", "capacitance": "nF", "voltage_drop": "V", "inductance" : "mH"}
 
     def __init__(self, component_model, width: int = 100, height: int = 50):
         super().__init__(0, 0, width, height)

@@ -42,7 +42,7 @@ class ComponentPalette(QWidget):
 
         # --- Component Section ---
         layout.addWidget(QLabel("<b>Components</b>"))
-        component_types = ["Resistor", "Capacitor", "LED"]
+        component_types = ["Resistor", "Capacitor", "LED", "Inductor"]
         for comp_type in component_types:
             btn = QPushButton(comp_type)
             # Use default argument in lambda to capture the current string value
