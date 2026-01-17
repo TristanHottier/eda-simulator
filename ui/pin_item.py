@@ -1,19 +1,26 @@
-from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsRectItem
-from PySide6.QtGui import QBrush, QColor
+# ui/pin_item.py
+from PySide6.QtWidgets import QGraphicsEllipseItem
+from PySide6.QtGui import QBrush, QColor, QPen
 from PySide6.QtCore import Qt, QPointF
 
 
 class PinItem(QGraphicsEllipseItem):
-    """The visual representation of a Pin on the schematic."""
+    """Visual dot representing a component terminal."""
 
-    def __init__(self, pin_logic, x, y, parent):
-        super().__init__(-5, -5, 10, 10, parent)  # 10px diameter
-        self.pin_logic = pin_logic  # Link to your Pin object from core/pin.py
-        self.setPos(x, y)
-        self.setBrush(QBrush(QColor("black")))
-        self.setPen(Qt.NoPen)
-        self.setZValue(1)
+    def __init__(self, pin_logic, x: float, y: float, parent):
+        # 8px diameter dot for pins (slightly smaller than junctions)
+        super().__init__(-4, -4, 8, 8, parent)
 
-    def scene_connection_point(self):
-        """Returns the center of the pin in scene coordinates."""
+        self.pin_logic = pin_logic
+        self.setPos(QPointF(x, y))
+
+        # FIX: Explicit solid black brush
+        self.setBrush(QBrush(QColor("black"), Qt.SolidPattern))
+        self.setPen(QPen(Qt.NoPen))
+
+        # FIX: Ensure it renders above the parent component's body
+        self.setZValue(5)
+
+    def scene_connection_point(self) -> QPointF:
+        # Maps the center of the pin to the global scene coordinates
         return self.mapToScene(QPointF(0, 0))
