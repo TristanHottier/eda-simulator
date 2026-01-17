@@ -1,6 +1,6 @@
 # ui/wire_segment_item.py
 from typing import Optional, Any
-from PySide6.QtWidgets import QGraphicsLineItem, QGraphicsItem
+from PySide6.QtWidgets import QGraphicsLineItem, QGraphicsItem, QWidget
 from PySide6.QtGui import QPen, QColor, QPainterPath, QPainterPathStroker, QPainter
 from PySide6.QtCore import Qt, QPointF
 
@@ -23,21 +23,21 @@ class WireSegmentItem(QGraphicsLineItem):
         self.end_node = None
 
         if not self.preview:
+            # Wires are selectable but NOT movable on their own
             self.setFlags(
                 QGraphicsItem.ItemIsSelectable |
-                QGraphicsItem.ItemIsMovable |
                 QGraphicsItem.ItemSendsGeometryChanges
             )
             self.setAcceptHoverEvents(True)
-            self.setAcceptedMouseButtons(Qt.LeftButton)
+            self.setAcceptedMouseButtons(Qt. LeftButton)
 
         # Standard wire styling
         self.base_pen = QPen(QColor(255, 0, 0), 2)
-        self.base_pen.setCosmetic(True)
+        self.base_pen. setCosmetic(True)
         self.base_pen.setCapStyle(Qt.RoundCap)
 
         if self.preview:
-            self.base_pen.setStyle(Qt.DashLine)
+            self.base_pen. setStyle(Qt.DashLine)
             self.base_pen.setColor(QColor(255, 0, 0, 150))
 
         self.setPen(self.base_pen)
@@ -49,7 +49,7 @@ class WireSegmentItem(QGraphicsLineItem):
         path.lineTo(self.line().p2())
 
         stroker = QPainterPathStroker()
-        stroker.setWidth(10)  # 10px virtual width for mouse detection
+        stroker. setWidth(10)  # 10px virtual width for mouse detection
         return stroker.createStroke(path)
 
     def paint(self, painter: QPainter, option, widget: Optional[QWidget] = None) -> None:
@@ -72,7 +72,7 @@ class WireSegmentItem(QGraphicsLineItem):
         """Triggers a visual highlight of the segment."""
         if self.is_highlighted != enabled:
             self.is_highlighted = enabled
-            self.update()
+            self. update()
 
     def hoverEnterEvent(self, event) -> None:
         if not self.preview and self.net_id is not None:
@@ -83,17 +83,7 @@ class WireSegmentItem(QGraphicsLineItem):
 
     def hoverLeaveEvent(self, event) -> None:
         if not self.preview and self.net_id is not None:
-            view = self.scene().views()[0]
-            for wire in view.net_to_wires.get(self.net_id, []):
+            view = self. scene().views()[0]
+            for wire in view.net_to_wires. get(self.net_id, []):
                 wire.set_glow(False)
         super().hoverLeaveEvent(event)
-
-    def _snap_value(self, val: float) -> float:
-        return round(val / self.GRID_SIZE) * self.GRID_SIZE
-
-    def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: Any) -> Any:
-        if change == QGraphicsItem.ItemPositionChange and self.scene():
-            new_x = self._snap_value(value.x())
-            new_y = self._snap_value(value.y())
-            return QPointF(new_x, new_y)
-        return super().itemChange(change, value)

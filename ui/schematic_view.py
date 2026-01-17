@@ -10,7 +10,7 @@ from ui.component_item import ComponentItem
 from ui.junction_item import JunctionItem
 from ui.pin_item import PinItem
 from ui.wire_segment_item import WireSegmentItem
-from ui.undo_commands import UndoStack, CreateWireCommand
+from ui.undo_commands import UndoStack, CreateWireCommand, DeleteItemsCommand
 from ui.grid import GridItem
 
 
@@ -300,6 +300,7 @@ class SchematicView(QGraphicsView):
         """
         Handles keyboard shortcuts.
         Esc: Cancels the current wire drawing chain.
+        Del : Deletes the selected item
         """
         if event.key() == Qt.Key_Escape:
             if self.drawing_wire:
@@ -307,6 +308,14 @@ class SchematicView(QGraphicsView):
             else:
                 # If not currently drawing, allow standard behavior (like deselecting)
                 super().keyPressEvent(event)
+        elif event.key() == Qt.Key_Delete:
+            # Retrieve selected items
+            selected_items = self.scene().selectedItems()
+
+            if selected_items:
+                # Create and execute a DeleteItemsCommand
+                delete_command = DeleteItemsCommand(self, selected_items)
+                self.undo_stack.push(delete_command)
         else:
             # Propagate other keys (like R for rotation) to the items or window
             super().keyPressEvent(event)
@@ -327,6 +336,22 @@ class SchematicView(QGraphicsView):
 
         # Optional: update the viewport to ensure the preview is cleared immediately
         self.viewport().update()
+
+    def get_snapping_grid_size(self):
+        """
+        Determines the snapping grid size based on the selection.
+        Returns:
+            int: The grid size (10px or 50px).
+        """
+        selected_items = self.scene().selectedItems()
+
+        # Check if at least one component is selected
+        for item in selected_items:
+            if isinstance(item, ComponentItem):
+                return 50  # Snap to 50px grid
+
+        # If no components are selected, snap to 10px grid
+        return 10
 
     def load_from_json(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open Schematic", "", "JSON Files (*.json)")

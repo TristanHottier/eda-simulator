@@ -30,7 +30,7 @@ class GridItem(QGraphicsItem):
     def paint(self, painter: QPainter, option, widget: Optional[QWidget] = None) -> None:
         """Draws the vertical and horizontal grid lines within the visible area."""
         # Setup a sharp, non-antialiased cosmetic pen
-        pen = QPen(QColor(210, 210, 210), 0)
+        pen = QPen(QColor(100, 100, 100), 0)
         painter.setPen(pen)
         painter.setRenderHint(QPainter.Antialiasing, False)
 
