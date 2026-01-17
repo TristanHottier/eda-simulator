@@ -1,4 +1,5 @@
 # ui/junction_item.py
+from typing import Any
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
 from PySide6.QtGui import QBrush, QColor, QPen
 from PySide6.QtCore import Qt, QPointF
@@ -17,6 +18,7 @@ class JunctionItem(QGraphicsEllipseItem):
 
         self.old_pos = None
         self.affected_wires = None
+        self._is_being_moved_by_master = False  # Flag for multi-selection movement
         self.setPos(x, y)
 
         # FIX: Ensure solid black fill and no border for a clean 'dot' look
@@ -41,11 +43,32 @@ class JunctionItem(QGraphicsEllipseItem):
         y = round(pos.y() / self.GRID_SIZE) * self.GRID_SIZE
         return QPointF(x, y)
 
+    def _is_component_in_selection(self) -> bool:
+        """Check if any ComponentItem is in the current selection."""
+        from ui.component_item import ComponentItem
+
+        if not self.scene():
+            return False
+
+        for item in self.scene().selectedItems():
+            if isinstance(item, ComponentItem):
+                return True
+        return False
+
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: Any) -> Any:
         if change == QGraphicsItem.ItemPositionChange and self.scene():
-            # Snap the junction to the grid (10px or 25px as per your wire settings)
-            grid = 10
-            new_pos = self._snap_to_grid(value)
+            # If being moved by a component (master), accept the position as-is
+            # The component has already calculated the correct delta
+            if self._is_being_moved_by_master:
+                new_pos = value
+            else:
+                # Check if a component is also selected
+                if self._is_component_in_selection():
+                    # Let the component handle our movement, don't move independently
+                    return self.pos()
+
+                # Junction moving alone - snap to 10px grid
+                new_pos = self._snap_to_grid(value)
 
             # Inform the view/scene to stretch connected wires
             view = self.scene().views()[0]

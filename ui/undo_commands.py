@@ -119,44 +119,54 @@ class DeleteItemsCommand:
         self.junction_items = [item for item in items if isinstance(item, JunctionItem)]
         self.wire_snapshot = []
 
-        for item in items:
+        for item in self.items:
             if isinstance(item, WireSegmentItem):
                 line = item.line()
                 self.wire_snapshot.append(((line.x1(), line.y1()), (line.x2(), line.y2()), item.net_id))
 
     def redo(self):
+        # Remove items from the scene safely
         for item in self.items:
-            # FIX: Only remove if the item is actually in the scene
+            # Check if the item is still in the scene before removing
             if item.scene() == self.view._scene:
                 self.view._scene.removeItem(item)
 
+            # Handle junctions explicitly
             if item in self.view.junctions:
                 self.view.junctions.remove(item)
 
+        # Remove models from components safely
         for model in self.models:
             if model in self.view.components:
                 self.view.components.remove(model)
 
+        # Clean up junctions after deletions
         self.view.cleanup_junctions()
 
     def undo(self):
+        # Restore items to the scene safely
         for item in self.items:
-            # FIX: Only add if the item is not already in the scene
+            # Prevent adding duplicates to the scene
             if not item.scene():
                 self.view._scene.addItem(item)
 
+            # Restore junctions explicitly
             if item in self.junction_items and item not in self.view.junctions:
                 self.view.junctions.append(item)
 
+        # Restore models to components safely
         for model in self.models:
             if model not in self.view.components:
                 self.view.components.append(model)
 
-        # Restore wires into point_to_net mapping
+        # Restore wires to point_to_net mapping
         for (p1, p2, net_id) in self.wire_snapshot:
-            self.view.point_to_net[p1] = net_id
-            self.view.point_to_net[p2] = net_id
+            if p1 not in self.view.point_to_net:
+                self.view.point_to_net[p1] = net_id
+            if p2 not in self.view.point_to_net:
+                self.view.point_to_net[p2] = net_id
 
+        # Clean up junctions after restoration
         self.view.cleanup_junctions()
 
 
