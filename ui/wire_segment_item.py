@@ -7,13 +7,16 @@ from PySide6.QtCore import Qt, QPointF
 
 class WireSegmentItem(QGraphicsLineItem):
     """
-        Represents a single segment of an electrical connection.
-        FIX: Updated GRID_SIZE to 25px for finer wire routing.
-        """
+    Represents a single segment of an electrical connection.
+    FIX: Updated GRID_SIZE to 25px for finer wire routing.
+    """
     GRID_SIZE = 10  # Changed from 50
 
+    DEFAULT_COLOR = QColor(255, 0, 0)  # Red
+
     def __init__(self, x1: float, y1: float, x2: float, y2: float,
-                 net_id: Optional[int] = None, preview: bool = False):
+                 net_id: Optional[int] = None, preview:  bool = False,
+                 color: QColor = None):
         super().__init__(x1, y1, x2, y2)
 
         self.net_id = net_id
@@ -22,9 +25,12 @@ class WireSegmentItem(QGraphicsLineItem):
         self.start_node = None  # Reference to PinItem or JunctionItem
         self.end_node = None
 
+        # Wire color (stored as QColor)
+        self._color = QColor(color) if color else QColor(self.DEFAULT_COLOR)
+
         if not self.preview:
             # Wires are selectable but NOT movable on their own
-            self.setFlags(
+            self. setFlags(
                 QGraphicsItem.ItemIsSelectable |
                 QGraphicsItem.ItemSendsGeometryChanges
             )
@@ -32,20 +38,49 @@ class WireSegmentItem(QGraphicsLineItem):
             self.setAcceptedMouseButtons(Qt. LeftButton)
 
         # Standard wire styling
-        self.base_pen = QPen(QColor(255, 0, 0), 2)
-        self.base_pen. setCosmetic(True)
+        self._update_pen()
+
+    def _update_pen(self) -> None:
+        """Updates the pen based on current color setting."""
+        self.base_pen = QPen(self._color, 2)
+        self.base_pen.setCosmetic(True)
         self.base_pen.setCapStyle(Qt.RoundCap)
 
         if self.preview:
-            self.base_pen. setStyle(Qt.DashLine)
-            self.base_pen.setColor(QColor(255, 0, 0, 150))
+            self.base_pen.setStyle(Qt.DashLine)
+            # Make preview slightly transparent but use wire's color
+            preview_color = QColor(self._color)
+            preview_color.setAlpha(180)
+            self.base_pen.setColor(preview_color)
 
         self.setPen(self.base_pen)
+
+    @property
+    def color(self) -> QColor:
+        """Returns the current color."""
+        return self._color
+
+    @property
+    def color_hex(self) -> str:
+        """Returns the current color as a hex string for serialization."""
+        return self._color.name()
+
+    def set_color(self, color: QColor) -> None:
+        """Sets the wire color."""
+        self._color = QColor(color)
+        self._update_pen()
+        self.update()
+
+    def set_color_from_hex(self, hex_color: str) -> None:
+        """Sets the wire color from a hex string."""
+        self._color = QColor(hex_color)
+        self._update_pen()
+        self.update()
 
     def shape(self) -> QPainterPath:
         """Increases the hit-box of the wire for easier selection."""
         path = QPainterPath()
-        path.moveTo(self.line().p1())
+        path.moveTo(self. line().p1())
         path.lineTo(self.line().p2())
 
         stroker = QPainterPathStroker()
@@ -55,12 +90,18 @@ class WireSegmentItem(QGraphicsLineItem):
     def paint(self, painter: QPainter, option, widget: Optional[QWidget] = None) -> None:
         """Draws the wire with dynamic state (selection/glow)."""
         if self.isSelected():
-            # Standard "Electric Blue" selection
-            pen = QPen(QColor(0, 120, 215), 3)
+            # Selection uses a brighter/thicker version of the wire's own color
+            select_color = QColor(self._color)
+            # Brighten the color for selection visibility
+            h, s, l, a = select_color.getHsl()
+            select_color.setHsl(h, s, min(l + 40, 255), a)
+            pen = QPen(select_color, 3)
             pen.setCosmetic(True)
         elif self.is_highlighted:
-            # Subtle red glow for net-wide highlighting
-            pen = QPen(QColor(220, 50, 50, 110), 6)
+            # Glow uses the wire's own color with transparency
+            glow_color = QColor(self._color)
+            glow_color.setAlpha(140)
+            pen = QPen(glow_color, 6)
             pen.setCosmetic(True)
         else:
             pen = self.pen()
@@ -77,13 +118,13 @@ class WireSegmentItem(QGraphicsLineItem):
     def hoverEnterEvent(self, event) -> None:
         if not self.preview and self.net_id is not None:
             view = self.scene().views()[0]
-            for wire in view.net_to_wires.get(self.net_id, []):
+            for wire in view.net_to_wires. get(self.net_id, []):
                 wire.set_glow(True)
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event) -> None:
         if not self.preview and self.net_id is not None:
-            view = self. scene().views()[0]
-            for wire in view.net_to_wires. get(self.net_id, []):
+            view = self.scene().views()[0]
+            for wire in view.net_to_wires.get(self.net_id, []):
                 wire.set_glow(False)
         super().hoverLeaveEvent(event)
