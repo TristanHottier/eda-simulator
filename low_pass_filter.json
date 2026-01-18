@@ -1,0 +1,93 @@
+{
+  "version": "0.1",
+  "components": [
+    {
+      "ref": "GND2",
+      "comp_type": "ground",
+      "x": 0.0,
+      "y": -100.0,
+      "rotation": 0.0,
+      "parameters": {
+        "type": "ground"
+      }
+    },
+    {
+      "ref": "GND1",
+      "comp_type": "ground",
+      "x": -400.0,
+      "y": 100.0,
+      "rotation": 0.0,
+      "parameters": {
+        "type": "ground"
+      }
+    },
+    {
+      "ref": "C1",
+      "comp_type": "capacitor",
+      "x": -100.0,
+      "y": -150.0,
+      "rotation": 0.0,
+      "parameters": {
+        "capacitance": 100,
+        "type": "capacitor"
+      }
+    },
+    {
+      "ref": "R1",
+      "comp_type": "resistor",
+      "x": -300.0,
+      "y": -150.0,
+      "rotation": 0.0,
+      "parameters": {
+        "resistance": 1000,
+        "type": "resistor"
+      }
+    },
+    {
+      "ref": "V1",
+      "comp_type": "ac_voltage_source",
+      "x": -400.0,
+      "y": -50.0,
+      "rotation": 0.0,
+      "parameters": {
+        "voltage": 5.0,
+        "frequency": 1000,
+        "type": "ac_voltage_source"
+      }
+    }
+  ],
+  "wires": [
+    {
+      "x1": -375.0,
+      "y1": 50.0,
+      "x2": -375.0,
+      "y2": 100.0,
+      "net_id": 5,
+      "color": "#000000"
+    },
+    {
+      "x1": 0.0,
+      "y1": -125.0,
+      "x2": 25.0,
+      "y2": -100.0,
+      "net_id": 4,
+      "color": "#000000"
+    },
+    {
+      "x1": -200.0,
+      "y1": -125.0,
+      "x2": -100.0,
+      "y2": -125.0,
+      "net_id": 3,
+      "color": "#ff0000"
+    },
+    {
+      "x1": -375.0,
+      "y1": -50.0,
+      "x2": -300.0,
+      "y2": -125.0,
+      "net_id": 2,
+      "color": "#ff0000"
+    }
+  ]
+}
