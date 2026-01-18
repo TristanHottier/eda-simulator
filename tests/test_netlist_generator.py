@@ -1,4 +1,4 @@
-# tests/test_netlist_generator. py
+# tests/test_netlist_generator.py
 """
 Unit tests for the Netlist Generator.
 """
@@ -34,7 +34,7 @@ class TestNetlistComponent(unittest.TestCase):
             nodes=["N1", "0"],
             parameters={"resistance": 2200000}
         )
-        result = comp. to_spice()
+        result = comp.to_spice()
         self.assertEqual(result, "R2 N1 0 2.2MEG")
 
     def test_capacitor_to_spice(self):
@@ -45,7 +45,7 @@ class TestNetlistComponent(unittest.TestCase):
             nodes=["N1", "0"],
             parameters={"capacitance": 100}  # 100nF
         )
-        result = comp. to_spice()
+        result = comp.to_spice()
         self.assertIn("C1 N1 0", result)
         self.assertIn("N", result)  # nanofarad
 
@@ -57,7 +57,7 @@ class TestNetlistComponent(unittest.TestCase):
             nodes=["N1", "N2"],
             parameters={"inductance":  10}  # 10mH
         )
-        result = comp. to_spice()
+        result = comp.to_spice()
         self.assertIn("L1 N1 N2", result)
 
     def test_dc_voltage_source_to_spice(self):
@@ -68,7 +68,7 @@ class TestNetlistComponent(unittest.TestCase):
             nodes=["N1", "0"],
             parameters={"voltage": 12.0}
         )
-        result = comp. to_spice()
+        result = comp.to_spice()
         self.assertEqual(result, "V1 N1 0 DC 12.0")
 
     def test_ac_voltage_source_to_spice(self):
@@ -91,7 +91,7 @@ class TestNetlistComponent(unittest.TestCase):
             nodes=["N1", "0"],
             parameters={"current": 0.01}
         )
-        result = comp. to_spice()
+        result = comp.to_spice()
         self.assertEqual(result, "I1 N1 0 DC 0.01")
 
     def test_led_to_spice(self):
@@ -114,7 +114,7 @@ class TestNetlistComponent(unittest.TestCase):
             nodes=["0"],
             parameters={}
         )
-        result = comp. to_spice()
+        result = comp.to_spice()
         self.assertEqual(result, "")
 
 
@@ -126,7 +126,7 @@ class TestNetlistGenerator(unittest.TestCase):
         gen = NetlistGenerator()
         self.assertEqual(len(gen.components), 0)
         self.assertEqual(len(gen.node_map), 0)
-        self.assertFalse(gen. has_ground)
+        self.assertFalse(gen.has_ground)
 
     def test_format_netlist_basic(self):
         """Test basic netlist formatting."""
@@ -145,7 +145,7 @@ class TestNetlistGenerator(unittest.TestCase):
 
         self.assertIn("EDA Simulator Generated Netlist", result)
         self.assertIn("R1 N1 0", result)
-        self.assertIn(". END", result)
+        self.assertIn(".END", result)
 
     def test_missing_ground_raises_error(self):
         """Test that missing ground raises MissingGroundError."""
@@ -153,7 +153,7 @@ class TestNetlistGenerator(unittest.TestCase):
         gen.has_ground = False
         gen.components = []
 
-        with self. assertRaises(MissingGroundError):
+        with self.assertRaises(MissingGroundError):
             gen._validate_circuit()
 
     def test_get_node_list(self):
@@ -164,7 +164,7 @@ class TestNetlistGenerator(unittest.TestCase):
             NetlistComponent("2", "resistor", ["N2", "0"], {}),
         ]
 
-        nodes = gen. get_node_list()
+        nodes = gen.get_node_list()
 
         self.assertIn("N1", nodes)
         self.assertIn("N2", nodes)
@@ -194,7 +194,7 @@ class TestNetlistGenerator(unittest.TestCase):
 
         result = gen._format_netlist()
 
-        self.assertIn(". MODEL LED_MODEL", result)
+        self.assertIn(".MODEL LED_MODEL", result)
 
     def test_warnings_included_as_comments(self):
         """Test that warnings are included as comments in netlist."""
@@ -208,7 +208,7 @@ class TestNetlistGenerator(unittest.TestCase):
         self.assertIn("* WARNING: Test warning message", result)
 
 
-class TestResistanceFormatting(unittest. TestCase):
+class TestResistanceFormatting(unittest.TestCase):
     """Tests for resistance value formatting."""
 
     def test_ohms(self):
@@ -219,7 +219,7 @@ class TestResistanceFormatting(unittest. TestCase):
     def test_kilohms(self):
         """Test formatting values in kilohms."""
         comp = NetlistComponent("1", "resistor", ["A", "B"], {"resistance": 4700})
-        self.assertIn("4.7K", comp. to_spice())
+        self.assertIn("4.7K", comp.to_spice())
 
     def test_megohms(self):
         """Test formatting values in megohms."""

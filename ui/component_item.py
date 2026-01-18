@@ -1,4 +1,4 @@
-# ui/component_item. py
+# ui/component_item.py
 from typing import Optional, Any, List
 from PySide6.QtWidgets import (
     QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem,
@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import QBrush, QColor, QPolygonF, QPen, QFont, QPainterPath
-from ui. undo_commands import MoveComponentCommand, RotateComponentCommand
+from ui.undo_commands import MoveComponentCommand, RotateComponentCommand
 from ui.pin_item import PinItem
 
 
@@ -44,7 +44,7 @@ class ComponentItem(QGraphicsRectItem):
         self._stroke_color = QColor("white")
 
         # --- Flags ---
-        self. setFlags(
+        self.setFlags(
             QGraphicsItem.ItemIsSelectable |
             QGraphicsItem.ItemIsFocusable |
             QGraphicsItem.ItemIsMovable |
@@ -54,7 +54,7 @@ class ComponentItem(QGraphicsRectItem):
 
         # Set origin to center for clean rotation
         self.setTransformOriginPoint(width / 2, height / 2)
-        self.setAcceptedMouseButtons(Qt. LeftButton)
+        self.setAcceptedMouseButtons(Qt.LeftButton)
 
         # --- Visuals:  Transparent bounding box for all components ---
         self.setBrush(QBrush(Qt.transparent))
@@ -64,13 +64,13 @@ class ComponentItem(QGraphicsRectItem):
         self._create_symbol(width, height)
 
         # --- Label ---
-        self. label = QGraphicsTextItem("", self)
+        self.label = QGraphicsTextItem("", self)
         self.refresh_label()
 
         # --- Pins ---
         self.pin_items: List[PinItem] = []
-        for pin_logic in self.model. pins:
-            p_item = PinItem(pin_logic, pin_logic.rel_x, pin_logic. rel_y, self)
+        for pin_logic in self.model.pins:
+            p_item = PinItem(pin_logic, pin_logic.rel_x, pin_logic.rel_y, self)
             self.pin_items.append(p_item)
 
     def set_dark_mode(self, dark:  bool) -> None:
@@ -94,40 +94,40 @@ class ComponentItem(QGraphicsRectItem):
         thick_pen = QPen(self._stroke_color, 3)
         thin_pen = QPen(self._stroke_color, 1.5)
 
-        comp_type = self. model.type
+        comp_type = self.model.type
 
         if comp_type == "resistor":
             self.resistor_lead_left.setPen(pen)
-            self.resistor_zigzag. setPen(pen)
+            self.resistor_zigzag.setPen(pen)
             self.resistor_lead_right.setPen(pen)
 
         elif comp_type == "capacitor":
-            self.cap_lead_left. setPen(pen)
+            self.cap_lead_left.setPen(pen)
             self.cap_plate_left.setPen(thick_pen)
             self.cap_plate_right.setPen(thick_pen)
-            self.cap_lead_right. setPen(pen)
+            self.cap_lead_right.setPen(pen)
 
         elif comp_type == "inductor":
-            self. inductor_lead_left.setPen(pen)
+            self.inductor_lead_left.setPen(pen)
             self.inductor_coils.setPen(pen)
             self.inductor_lead_right.setPen(pen)
 
         elif comp_type == "led":
-            self. led_lead_left.setPen(pen)
+            self.led_lead_left.setPen(pen)
             self.led_triangle.setPen(pen)
             # LED keeps yellow fill regardless of theme
             self.led_bar.setPen(thick_pen)
             self.led_lead_right.setPen(pen)
             self.led_arrow1_line.setPen(thin_pen)
             self.led_arrow1_head.setPen(thin_pen)
-            self.led_arrow1_head. setBrush(QBrush(self._stroke_color))
-            self.led_arrow2_line. setPen(thin_pen)
+            self.led_arrow1_head.setBrush(QBrush(self._stroke_color))
+            self.led_arrow2_line.setPen(thin_pen)
             self.led_arrow2_head.setPen(thin_pen)
             self.led_arrow2_head.setBrush(QBrush(self._stroke_color))
 
         elif comp_type == "ground":
-            self. gnd_vertical.setPen(pen)
-            for i, bar in enumerate(self. gnd_bars):
+            self.gnd_vertical.setPen(pen)
+            for i, bar in enumerate(self.gnd_bars):
                 bar.setPen(QPen(self._stroke_color, 3 - i))
 
         elif comp_type in ("dc_voltage_source", "ac_voltage_source"):
@@ -135,10 +135,10 @@ class ComponentItem(QGraphicsRectItem):
             self.voltage_circle.setPen(pen)
             # Circle fill:  dark gray in dark mode, white in light mode
             if self._dark_mode:
-                self. voltage_circle.setBrush(QBrush(QColor(40, 40, 40)))
+                self.voltage_circle.setBrush(QBrush(QColor(40, 40, 40)))
             else:
-                self. voltage_circle.setBrush(QBrush(Qt.white))
-            self.vs_lead_bottom. setPen(pen)
+                self.voltage_circle.setBrush(QBrush(Qt.white))
+            self.vs_lead_bottom.setPen(pen)
             self.plus_label.setDefaultTextColor(self._stroke_color)
             self.minus_label.setDefaultTextColor(self._stroke_color)
             if comp_type == "ac_voltage_source":
@@ -148,10 +148,10 @@ class ComponentItem(QGraphicsRectItem):
                 self.dc_line2.setPen(pen)
 
         elif comp_type == "dc_current_source":
-            self. cs_lead_top. setPen(pen)
+            self.cs_lead_top.setPen(pen)
             self.current_circle.setPen(pen)
             if self._dark_mode:
-                self. current_circle.setBrush(QBrush(QColor(40, 40, 40)))
+                self.current_circle.setBrush(QBrush(QColor(40, 40, 40)))
             else:
                 self.current_circle.setBrush(QBrush(Qt.white))
             self.cs_lead_bottom.setPen(pen)
@@ -159,9 +159,9 @@ class ComponentItem(QGraphicsRectItem):
             self.arrow_head_item.setBrush(QBrush(self._stroke_color))
 
         elif hasattr(self, 'generic_rect'):
-            self.generic_rect. setPen(pen)
+            self.generic_rect.setPen(pen)
             if self._dark_mode:
-                self. generic_rect.setBrush(QBrush(QColor(40, 40, 40)))
+                self.generic_rect.setBrush(QBrush(QColor(40, 40, 40)))
             else:
                 self.generic_rect.setBrush(QBrush(QColor("#eeeeee")))
             self.generic_lead_left.setPen(pen)
@@ -169,7 +169,7 @@ class ComponentItem(QGraphicsRectItem):
 
     def _create_symbol(self, width:  int, height: int) -> None:
         """Creates the appropriate schematic symbol based on component type."""
-        comp_type = self. model.type
+        comp_type = self.model.type
 
         if comp_type == "resistor":
             self._create_resistor_symbol(width, height)
@@ -230,7 +230,7 @@ class ComponentItem(QGraphicsRectItem):
 
         self.resistor_zigzag = QGraphicsPathItem(path, self)
         self.resistor_zigzag.setPen(pen)
-        self.resistor_zigzag. setBrush(QBrush(Qt.NoBrush))
+        self.resistor_zigzag.setBrush(QBrush(Qt.NoBrush))
 
         # Lead-out line (right side)
         self.resistor_lead_right = QGraphicsLineItem(zigzag_end, center_y, width, center_y, self)
@@ -249,7 +249,7 @@ class ComponentItem(QGraphicsRectItem):
         self.cap_lead_left.setPen(pen)
 
         # Left plate
-        self. cap_plate_left = QGraphicsLineItem(
+        self.cap_plate_left = QGraphicsLineItem(
             center_x - plate_gap, center_y - plate_height / 2,
             center_x - plate_gap, center_y + plate_height / 2,
             self
@@ -334,8 +334,8 @@ class ComponentItem(QGraphicsRectItem):
         self.led_bar.setPen(QPen(self._stroke_color, 3))
 
         # Right lead
-        self. led_lead_right = QGraphicsLineItem(center_x + triangle_size / 2, center_y, width, center_y, self)
-        self.led_lead_right. setPen(pen)
+        self.led_lead_right = QGraphicsLineItem(center_x + triangle_size / 2, center_y, width, center_y, self)
+        self.led_lead_right.setPen(pen)
 
         # Light emission arrows
         arrow_pen = QPen(self._stroke_color, 1.5)
@@ -368,7 +368,7 @@ class ComponentItem(QGraphicsRectItem):
         arrow2_end_x = arrow2_start_x + 15
         arrow2_end_y = arrow2_start_y - 12
 
-        self. led_arrow2_line = QGraphicsLineItem(
+        self.led_arrow2_line = QGraphicsLineItem(
             arrow2_start_x, arrow2_start_y,
             arrow2_end_x, arrow2_end_y,
             self
@@ -425,7 +425,7 @@ class ComponentItem(QGraphicsRectItem):
 
         # Circle
         self.voltage_circle = QGraphicsEllipseItem(circle_x, circle_y, circle_diameter, circle_diameter, self)
-        self.voltage_circle. setPen(pen)
+        self.voltage_circle.setPen(pen)
         self.voltage_circle.setBrush(QBrush(QColor(40, 40, 40)))  # Dark fill for dark mode
 
         # Vertical line from circle to bottom pin
@@ -449,8 +449,8 @@ class ComponentItem(QGraphicsRectItem):
         self.minus_label = QGraphicsTextItem("−", self)
         self.minus_label.setFont(plus_font)
         self.minus_label.setDefaultTextColor(self._stroke_color)
-        minus_rect = self.minus_label. boundingRect()
-        self.minus_label. setPos(width / 2 + 8, circle_y + circle_diameter - minus_rect.height() + 15)
+        minus_rect = self.minus_label.boundingRect()
+        self.minus_label.setPos(width / 2 + 8, circle_y + circle_diameter - minus_rect.height() + 15)
 
         # AC or DC indicator in the CENTER of the circle
         if self.model.type == "ac_voltage_source":
@@ -475,7 +475,7 @@ class ComponentItem(QGraphicsRectItem):
         self.cs_lead_top.setPen(pen)
 
         # Circle
-        self. current_circle = QGraphicsEllipseItem(circle_x, circle_y, circle_diameter, circle_diameter, self)
+        self.current_circle = QGraphicsEllipseItem(circle_x, circle_y, circle_diameter, circle_diameter, self)
         self.current_circle.setPen(pen)
         self.current_circle.setBrush(QBrush(QColor(40, 40, 40)))  # Dark fill for dark mode
 
@@ -542,7 +542,7 @@ class ComponentItem(QGraphicsRectItem):
         )
 
         self.ac_wave = QGraphicsPathItem(path, self)
-        self.ac_wave. setPen(QPen(self._stroke_color, 2))
+        self.ac_wave.setPen(QPen(self._stroke_color, 2))
         self.ac_wave.setBrush(QBrush(Qt.NoBrush))
 
     def _draw_dc_symbol(self, width:  int, height: int, circle_y:  float, circle_diameter: float) -> None:
@@ -579,7 +579,7 @@ class ComponentItem(QGraphicsRectItem):
             self
         )
         self.generic_rect.setPen(pen)
-        self.generic_rect. setBrush(QBrush(QColor(40, 40, 40)))
+        self.generic_rect.setBrush(QBrush(QColor(40, 40, 40)))
 
         # Lead lines
         center_y = height / 2
@@ -594,26 +594,26 @@ class ComponentItem(QGraphicsRectItem):
         if self.model.type == "ground":
             text = self.ref
         elif self.model.type == "dc_voltage_source":
-            voltage = self.model. parameters. get("voltage", 5.0)
+            voltage = self.model.parameters.get("voltage", 5.0)
             text = f"{self.ref}\n{voltage}V DC"
         elif self.model.type == "ac_voltage_source":
-            voltage = self.model. parameters.get("voltage", 5.0)
-            freq = self.model. parameters.get("frequency", 1000)
+            voltage = self.model.parameters.get("voltage", 5.0)
+            freq = self.model.parameters.get("frequency", 1000)
             text = f"{self.ref}\n{voltage}V {freq}Hz"
         elif self.model.type == "dc_current_source":
             current = self.model.parameters.get("current", 0.001)
             if current < 1:
-                text = f"{self. ref}\n{current * 1000}mA"
+                text = f"{self.ref}\n{current * 1000}mA"
             else:
                 text = f"{self.ref}\n{current}A"
         else:
             main_key = next(
-                (k for k in self. UNIT_MAP.keys() if k in self.model.parameters),
+                (k for k in self.UNIT_MAP.keys() if k in self.model.parameters),
                 None
             )
             if main_key:
-                val = self.model. parameters[main_key]
-                unit = self.UNIT_MAP. get(main_key, "")
+                val = self.model.parameters[main_key]
+                unit = self.UNIT_MAP.get(main_key, "")
                 text = f"{self.ref} {val}{unit}"
             else:
                 text = self.ref
@@ -625,27 +625,27 @@ class ComponentItem(QGraphicsRectItem):
     def update_label_position(self) -> None:
         """Centers the label above or beside the component."""
         rect = self.rect()
-        label_rect = self.label. boundingRect()
+        label_rect = self.label.boundingRect()
 
         if self.model.type == "ground":
             self.label.setPos(
                 (rect.width() - label_rect.width()) / 2,
                 rect.height() + 5
             )
-        elif self.model. type in ("dc_voltage_source", "ac_voltage_source", "dc_current_source"):
+        elif self.model.type in ("dc_voltage_source", "ac_voltage_source", "dc_current_source"):
             self.label.setPos(
                 rect.width() + 5,
                 (rect.height() - label_rect.height()) / 2
             )
         else:
-            self. label.setPos(
-                (rect. width() - label_rect.width()) / 2,
+            self.label.setPos(
+                (rect.width() - label_rect.width()) / 2,
                 -label_rect.height() - 5
             )
 
     def _snap_to_grid(self, pos: QPointF) -> QPointF:
         """Calculates the nearest grid intersection for a given position."""
-        x = round(pos.x() / self. GRID_SIZE) * self.GRID_SIZE
+        x = round(pos.x() / self.GRID_SIZE) * self.GRID_SIZE
         y = round(pos.y() / self.GRID_SIZE) * self.GRID_SIZE
         return QPointF(x, y)
 
@@ -665,11 +665,11 @@ class ComponentItem(QGraphicsRectItem):
             if self._is_being_moved_by_master:
                 return value
 
-            old_pos = self. pos()
+            old_pos = self.pos()
             new_pos = self._snap_to_grid(value)
             delta = new_pos - old_pos
 
-            if (delta.x() != 0 or delta. y() != 0) and self._is_master_component():
+            if (delta.x() != 0 or delta.y() != 0) and self._is_master_component():
                 self._move_selected_junctions_proportionally(delta)
 
             return new_pos
@@ -691,12 +691,12 @@ class ComponentItem(QGraphicsRectItem):
                 item._is_being_moved_by_master = False
 
     def mousePressEvent(self, event) -> None:
-        self. old_pos = self.pos()
+        self.old_pos = self.pos()
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:
-        new_pos = self. pos()
-        if self. old_pos and self. old_pos != new_pos:
+        new_pos = self.pos()
+        if self.old_pos and self.old_pos != new_pos:
             view = self.scene().views()[0]
             if hasattr(view, "undo_stack"):
                 view.undo_stack.push(MoveComponentCommand(self, self.old_pos, new_pos))
@@ -717,6 +717,6 @@ class ComponentItem(QGraphicsRectItem):
             if hasattr(view, "undo_stack"):
                 view.undo_stack.push(RotateComponentCommand(self, old_rot, new_rot))
             else:
-                self. setRotation(new_rot)
+                self.setRotation(new_rot)
         else:
             super().keyPressEvent(event)

@@ -374,7 +374,7 @@ class NetlistGenerator:
 
         # Add standard models
         lines.append("* --- Component Models ---")
-        lines.append(". MODEL LED_MODEL D(IS=1E-20 N=1.5 RS=0.1)")
+        lines.append(".MODEL LED_MODEL D(IS=1E-20 N=1.5 RS=0.1)")
         lines.append("")
 
         # Add components
@@ -394,7 +394,7 @@ class NetlistGenerator:
             lines.append("")
 
         # End statement
-        lines.append(". END")
+        lines.append(".END")
 
         return "\n".join(lines)
 

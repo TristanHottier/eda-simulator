@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
 from PySide6.QtGui import QBrush, QColor, QPen
 from PySide6.QtCore import Qt, QPointF
 
-from ui. undo_commands import MoveJunctionCommand
+from ui.undo_commands import MoveJunctionCommand
 from ui.wire_segment_item import WireSegmentItem
 
 
@@ -23,11 +23,11 @@ class JunctionItem(QGraphicsEllipseItem):
         self.setPos(x, y)
 
         # Default to dark mode (white junctions)
-        self. setBrush(QBrush(QColor("white"), Qt.SolidPattern))
+        self.setBrush(QBrush(QColor("white"), Qt.SolidPattern))
         self.setPen(QPen(Qt.NoPen))
 
         # Set Z-Value high enough to sit on top of all wire segments
-        self. setZValue(5)
+        self.setZValue(5)
 
         self.setFlags(
             QGraphicsItem.ItemIsSelectable |
@@ -85,14 +85,14 @@ class JunctionItem(QGraphicsEllipseItem):
         return super().itemChange(change, value)
 
     def mousePressEvent(self, event):
-        self.old_pos = self. pos()
+        self.old_pos = self.pos()
         # Identify affected wires once at start of drag
-        self. affected_wires = []
+        self.affected_wires = []
         view = self.scene().views()[0]
         for item in self.scene().items():
             if isinstance(item, WireSegmentItem) and not item.preview:
                 line = item.line()
-                p1_aff = (line.p1() == self. old_pos)
+                p1_aff = (line.p1() == self.old_pos)
                 p2_aff = (line.p2() == self.old_pos)
                 if p1_aff or p2_aff:
                     self.affected_wires.append((item, p1_aff, p2_aff))
@@ -100,10 +100,10 @@ class JunctionItem(QGraphicsEllipseItem):
 
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
-        new_pos = self. pos()
+        new_pos = self.pos()
         if self.old_pos != new_pos:
             view = self.scene().views()[0]
             command = MoveJunctionCommand(
-                self, self. old_pos, new_pos, self.affected_wires
+                self, self.old_pos, new_pos, self.affected_wires
             )
             view.undo_stack.push(command)

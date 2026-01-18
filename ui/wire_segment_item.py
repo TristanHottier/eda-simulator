@@ -30,12 +30,12 @@ class WireSegmentItem(QGraphicsLineItem):
 
         if not self.preview:
             # Wires are selectable but NOT movable on their own
-            self. setFlags(
+            self.setFlags(
                 QGraphicsItem.ItemIsSelectable |
                 QGraphicsItem.ItemSendsGeometryChanges
             )
             self.setAcceptHoverEvents(True)
-            self.setAcceptedMouseButtons(Qt. LeftButton)
+            self.setAcceptedMouseButtons(Qt.LeftButton)
 
         # Standard wire styling
         self._update_pen()
@@ -80,11 +80,11 @@ class WireSegmentItem(QGraphicsLineItem):
     def shape(self) -> QPainterPath:
         """Increases the hit-box of the wire for easier selection."""
         path = QPainterPath()
-        path.moveTo(self. line().p1())
+        path.moveTo(self.line().p1())
         path.lineTo(self.line().p2())
 
         stroker = QPainterPathStroker()
-        stroker. setWidth(10)  # 10px virtual width for mouse detection
+        stroker.setWidth(10)  # 10px virtual width for mouse detection
         return stroker.createStroke(path)
 
     def paint(self, painter: QPainter, option, widget: Optional[QWidget] = None) -> None:
@@ -113,12 +113,12 @@ class WireSegmentItem(QGraphicsLineItem):
         """Triggers a visual highlight of the segment."""
         if self.is_highlighted != enabled:
             self.is_highlighted = enabled
-            self. update()
+            self.update()
 
     def hoverEnterEvent(self, event) -> None:
         if not self.preview and self.net_id is not None:
             view = self.scene().views()[0]
-            for wire in view.net_to_wires. get(self.net_id, []):
+            for wire in view.net_to_wires.get(self.net_id, []):
                 wire.set_glow(True)
         super().hoverEnterEvent(event)
 

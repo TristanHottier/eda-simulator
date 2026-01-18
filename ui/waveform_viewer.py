@@ -599,6 +599,15 @@ class WaveformViewer(QWidget):
         Args:
             data: SimulationData containing analysis results.
         """
+        print(f"--- VIEWER DEBUG ---")
+        if data:
+            print(f"Viewer received {len(data.get_available_analyses())} analyses.")
+            # Check AC specifically
+            if data.ac_analysis:
+                print(f"AC Waveforms: {list(data.ac_analysis.waveforms.keys())}")
+        else:
+            print("Viewer received NULL data!")
+
         self._simulation_data = data
         self._update_analysis_selector()
 
@@ -663,6 +672,9 @@ class WaveformViewer(QWidget):
         self._plot.set_title("Transient Analysis")
         self._plot.set_labels("Time (s)", "Voltage (V)")
 
+        if hasattr(self._plot, '_plot_widget'):
+            self._plot._plot_widget.setLogMode(x=False, y=False)
+
         self._display_waveform_group(group)
 
     def _show_ac_analysis(self):
@@ -675,6 +687,12 @@ class WaveformViewer(QWidget):
         group = self._simulation_data.ac_analysis
         self._plot.set_title("AC Analysis (Frequency Response)")
         self._plot.set_labels("Frequency (Hz)", "Magnitude (V)")
+
+        # --- ADD THIS LINE TO FIX THE GRAPH ---
+        if hasattr(self._plot, '_plot_widget'):
+            # x=True enables log scale for Frequency, y=False keeps Magnitude linear
+            self._plot._plot_widget.setLogMode(x=True, y=False)
+        # ---------------------------------------
 
         self._display_waveform_group(group)
 
@@ -695,6 +713,13 @@ class WaveformViewer(QWidget):
         """Displays all waveforms from a group."""
         for i, (name, waveform) in enumerate(group.waveforms.items()):
             color = waveform.color or get_waveform_color(i)
+            # --- DEBUG BLOCK: print data lengths and min/max
+            print(f"[DEBUG] {name}: len(x_data)={len(waveform.x_data)}, len(y_data)={len(waveform.y_data)}")
+            if hasattr(waveform, 'x_data') and hasattr(waveform, 'y_data') and len(waveform.x_data) and len(
+                    waveform.y_data):
+                print(
+                    f"[DEBUG] {name}: x min={min(waveform.x_data):.2g}, max={max(waveform.x_data):.2g}, y min={min(waveform.y_data):.2g}, max={max(waveform.y_data):.2g}")
+            # ---
             self._plot.add_waveform(waveform, color)
             self._add_legend_item(name, color)
 

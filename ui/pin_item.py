@@ -1,4 +1,4 @@
-# ui/pin_item. py
+# ui/pin_item.py
 from PySide6.QtWidgets import QGraphicsEllipseItem
 from PySide6.QtGui import QBrush, QColor, QPen
 from PySide6.QtCore import Qt, QPointF
