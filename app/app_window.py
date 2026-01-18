@@ -1,5 +1,5 @@
 # app_window.py
-from PySide6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QFrame
+from PySide6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QPushButton
 from PySide6.QtCore import Qt
 from ui.schematic_view import SchematicView
 from app.component_palette import ComponentPalette
@@ -17,6 +17,9 @@ class AppWindow(QMainWindow):
         self.setWindowTitle("EDA Simulator — Phase 1")
         self.resize(1200, 800)
 
+        # --- Theme State ---
+        self._dark_mode = True  # Start in dark mode
+
         # --- Central Widget & Main Layout ---
         central = QWidget()
         self.setCentralWidget(central)
@@ -29,6 +32,18 @@ class AppWindow(QMainWindow):
         # --- Right Side Panel (Tools & Properties) ---
         side_panel_layout = QVBoxLayout()
         main_layout.addLayout(side_panel_layout)
+
+        # 0. Theme Toggle Button (Top of panel)
+        self.theme_toggle_btn = QPushButton("☀")  # Sun icon for switching to light mode
+        self.theme_toggle_btn.setFixedSize(32, 32)
+        self.theme_toggle_btn.setToolTip("Switch to Light Mode")
+        self.theme_toggle_btn.clicked.connect(self._toggle_theme)
+
+        # Create a horizontal layout to right-align the button
+        theme_layout = QHBoxLayout()
+        theme_layout.addStretch()
+        theme_layout.addWidget(self.theme_toggle_btn)
+        side_panel_layout.addLayout(theme_layout)
 
         # 1. Component Palette (Top)
         self.palette = ComponentPalette(self.schematic_view)
@@ -47,6 +62,33 @@ class AppWindow(QMainWindow):
         # --- Event Connections ---
         # Update inspector whenever the scene selection changes
         self.schematic_view.scene().selectionChanged.connect(self._on_selection_changed)
+
+        # Apply initial dark theme
+        self._apply_theme()
+
+    def _toggle_theme(self) -> None:
+        """Toggles between light and dark mode."""
+        self._dark_mode = not self._dark_mode
+        self._apply_theme()
+
+        # Update button icon and tooltip
+        if self._dark_mode:
+            self.theme_toggle_btn.setText("☀")  # Sun = click to go light
+            self.theme_toggle_btn.setToolTip("Switch to Light Mode")
+        else:
+            self.theme_toggle_btn.setText("🌙")  # Moon = click to go dark
+            self.theme_toggle_btn.setToolTip("Switch to Dark Mode")
+
+    def _apply_theme(self) -> None:
+        """Applies the current theme to all components."""
+        # Update schematic view
+        self.schematic_view.set_dark_mode(self._dark_mode)
+
+        # Update all existing components in the scene
+        from ui.component_item import ComponentItem
+        for item in self.schematic_view.scene().items():
+            if isinstance(item, ComponentItem):
+                item.set_dark_mode(self._dark_mode)
 
     def _on_selection_changed(self) -> None:
         """Syncs the inspector with the currently selected item."""
