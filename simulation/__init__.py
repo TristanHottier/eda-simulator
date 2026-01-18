@@ -26,6 +26,18 @@ from simulation.spice_runner import (
     InvalidNetlistError
 )
 
+from simulation.waveform_data import (
+    Waveform,
+    WaveformType,
+    WaveformPoint,
+    WaveformGroup,
+    AxisType,
+    OperatingPointData,
+    SimulationData,
+    WAVEFORM_COLORS,
+    get_waveform_color
+)
+
 __all__ = [
     # Netlist Generator
     "NetlistGenerator",
@@ -42,5 +54,15 @@ __all__ = [
     "SimulationError",
     "NgspiceNotFoundError",
     "SimulationFailedError",
-    "InvalidNetlistError"
+    "InvalidNetlistError",
+    # Waveform Data
+    "Waveform",
+    "WaveformType",
+    "WaveformPoint",
+    "WaveformGroup",
+    "AxisType",
+    "OperatingPointData",
+    "SimulationData",
+    "WAVEFORM_COLORS",
+    "get_waveform_color"
 ]
