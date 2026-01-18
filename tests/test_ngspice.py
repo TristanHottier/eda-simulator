@@ -16,7 +16,7 @@ print all
 .end
 """
 
-with tempfile. NamedTemporaryFile(mode='w', suffix='.cir', delete=False) as f:
+with tempfile.NamedTemporaryFile(mode='w', suffix='.cir', delete=False) as f:
     f.write(netlist)
     path = f.name
 

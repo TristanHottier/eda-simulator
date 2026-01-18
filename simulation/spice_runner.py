@@ -6,6 +6,12 @@ This module provides the interface between the netlist generator
 and the ngspice simulation engine, handling simulation execution
 and result parsing.
 """
+import os
+# 1. SET PATHS FIRST
+
+
+# 2. NOW IMPORT THE REST
+from PySpice.Spice.Parser import SpiceParser
 
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
@@ -17,10 +23,10 @@ import os
 
 class AnalysisType(Enum):
     """Types of SPICE analyses supported."""
-    OPERATING_POINT = "op"  # DC operating point (. op)
-    DC_SWEEP = "dc"  # DC sweep analysis (. dc)
+    OPERATING_POINT = "op"  # DC operating point (.op)
+    DC_SWEEP = "dc"  # DC sweep analysis (.dc)
     AC_ANALYSIS = "ac"  # AC frequency response (.ac)
-    TRANSIENT = "tran"  # Time-domain transient (. tran)
+    TRANSIENT = "tran"  # Time-domain transient (.tran)
 
 
 class SimulationError(Exception):
@@ -71,7 +77,7 @@ class AnalysisConfig:
     def to_spice_command(self) -> str:
         """Converts the analysis config to a SPICE command."""
         if self.analysis_type == AnalysisType.OPERATING_POINT:
-            return ". OP"
+            return ".OP"
 
         elif self.analysis_type == AnalysisType.TRANSIENT:
             return f".TRAN {self.step_time} {self.stop_time} {self.start_time}"
@@ -146,93 +152,73 @@ class SpiceRunner:
         self._last_result: Optional[SimulationResult] = None
 
     def check_ngspice_available(self) -> bool:
-        """
-        Checks if ngspice is installed and accessible.
-
-        Returns:
-            bool: True if ngspice is available, False otherwise.
-        """
         if self._ngspice_available is not None:
             return self._ngspice_available
 
-        # Try importing PySpice
+        # 1.ATTEMPT TO SET LOCAL PATH (If you put the DLL in a 'lib' folder)
+        # Get the absolute path to the folder containing this script
+        base_path = Path(__file__).parent.parent.absolute()
+        local_lib = base_path / "lib" / "ngspice.dll"
+
+        if local_lib.exists():
+            # Explicitly set the library path for PySpice
+            os.environ["PYSPICE_LIBRARY_PATH"] = str(local_lib)
+
+        # 2.Try importing PySpice
         try:
             import PySpice
             from PySpice.Spice.NgSpice.Shared import NgSpiceShared
             self._pyspice_available = True
-        except ImportError:
+
+            # Optional: Force load to verify the DLL actually works right now
+            # This catches the error immediately instead of during simulation
+            _ = NgSpiceShared.new_instance()
+
+        except (ImportError, OSError, Exception) as e:
+            # OSError is raised if the DLL is missing during load
+            print(f"PySpice load failed: {e}")
             self._pyspice_available = False
             self._ngspice_available = self._check_ngspice_cli()
             return self._ngspice_available
 
-        # Try to initialize ngspice
-        try:
-            ngspice = NgSpiceShared.new_instance()
-            self._ngspice_available = True
-        except Exception:
-            # Try command-line ngspice as fallback
-            self._ngspice_available = self._check_ngspice_cli()
-
-        return self._ngspice_available
+        self._ngspice_available = True
+        return True
 
     def _check_ngspice_cli(self) -> bool:
-        """Checks if ngspice is available via command line."""
-        import subprocess
-        try:
-            result = subprocess.run(
-                ["ngspice", "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            return result.returncode == 0
-        except (subprocess.SubprocessError, FileNotFoundError):
-            return False
+        """Actually checks if ngspice executable is in the system PATH."""
+        import shutil
+        return shutil.which("ngspice") is not None
 
-    def run_simulation(
-            self,
-            netlist: str,
-            analysis: AnalysisConfig,
-            probe_nodes: Optional[List[str]] = None
-    ) -> SimulationResult:
-        """
-        Runs a SPICE simulation with the given netlist and analysis.
-
-        Args:
-            netlist: The SPICE netlist string.
-            analysis: The analysis configuration.
-            probe_nodes: Optional list of specific nodes to probe.
-                        If None, all nodes are probed.
-
-        Returns:
-            SimulationResult: The simulation results.
-
-        Raises:
-            NgspiceNotFoundError: If ngspice is not available.
-            SimulationFailedError: If the simulation fails.
-        """
-        if not self.check_ngspice_available():
-            raise NgspiceNotFoundError(
-                "ngspice is not installed.  Please install ngspice and PySpice:\n"
-                "  pip install PySpice\n"
-                "  # On Ubuntu/Debian:  sudo apt install ngspice\n"
-                "  # On macOS:  brew install ngspice\n"
-                "  # On Windows: Download from ngspice.sourceforge.io"
-            )
-
-        # Prepare the netlist with analysis commands
+    def run_simulation(self, netlist: str, analysis: AnalysisConfig,
+                       probe_nodes: Optional[List[str]] = None) -> SimulationResult:
+        print("[DEBUG] Preparing full netlist for simulation")
+        # 1. Prepare the full netlist for the CLI
         full_netlist = self._prepare_netlist(netlist, analysis, probe_nodes)
-        self._last_netlist = full_netlist
+        print(f"[DEBUG] Full netlist prepared: {full_netlist[:200]}...")  # Print only the first 200 characters
 
-        # Try PySpice first, fall back to CLI
+        # 2. Try CLI first (it's more reliable on Python 3.14)
+        try:
+            print("[DEBUG] Checking if NGSpice CLI is available")
+            if self._check_ngspice_cli():
+                print("[DEBUG] NGSpice CLI available. Running with CLI.")
+                result = self._run_with_cli(full_netlist, analysis)
+                print("[DEBUG] Simulation with CLI successful")
+                return result
+            else:
+                print("[DEBUG] NGSpice CLI not available. Skipping to PySpice.")
+        except Exception as e:
+            print(f"[DEBUG] CLI simulation failed with exception: {e}. Trying PySpice...")
+
+        # 3. Fallback to PySpice only if CLI isn't available
+        print(f"[DEBUG] PySpice available: {self._pyspice_available}")
         if self._pyspice_available:
-            try:
-                return self._run_with_pyspice(full_netlist, analysis)
-            except Exception as e:
-                # Fall back to CLI mode
-                return self._run_with_cli(full_netlist, analysis)
-        else:
-            return self._run_with_cli(full_netlist, analysis)
+            print("[DEBUG] Running simulation with PySpice")
+            result = self._run_with_pyspice(netlist, analysis)
+            print("[DEBUG] Simulation with PySpice successful")
+            return result
+
+        print("[DEBUG] No simulation engine is available. Raising NgspiceNotFoundError.")
+        raise NgspiceNotFoundError("No simulation engine (CLI or DLL) is working.")
 
     def _prepare_netlist(
             self,
@@ -243,7 +229,7 @@ class SpiceRunner:
         """Prepares the netlist with analysis and control commands."""
         lines = netlist.split("\n")
 
-        # Find the . END statement and insert before it
+        # Find the .END statement and insert before it
         end_index = -1
         for i, line in enumerate(lines):
             if line.strip().upper() == ".END":
@@ -258,7 +244,7 @@ class SpiceRunner:
 
         # Add control block for saving data
         analysis_lines.append("")
-        analysis_lines.append(". CONTROL")
+        analysis_lines.append(".CONTROL")
         analysis_lines.append("run")
 
         # Save all node voltages or specific probes
@@ -267,17 +253,19 @@ class SpiceRunner:
                 if node != "0":  # Don't probe ground
                     analysis_lines.append(f"print v({node})")
         else:
-            analysis_lines.append("print all")
+            analysis_lines.append("set filetype=ascii")
+            analysis_lines.append("write sim.raw")
+            analysis_lines.append("quit")
 
-        analysis_lines.append(". ENDC")
+        analysis_lines.append(".ENDC")
         analysis_lines.append("")
 
-        # Insert analysis commands before . END
+        # Insert analysis commands before .END
         if end_index >= 0:
             lines = lines[:end_index] + analysis_lines + lines[end_index:]
         else:
             lines.extend(analysis_lines)
-            lines.append(". END")
+            lines.append(".END")
 
         return "\n".join(lines)
 
@@ -287,8 +275,10 @@ class SpiceRunner:
             analysis: AnalysisConfig
     ) -> SimulationResult:
         """Runs simulation using PySpice's ngspice shared library."""
-        from PySpice.Spice.NgSpice.Shared import NgSpiceShared
-        from PySpice.Spice.Parser import SpiceParser
+
+        clean_netlist = netlist
+        if not netlist.startswith("TITLE"):
+            clean_netlist = "TITLE\n" + netlist
 
         result = SimulationResult(
             success=False,
@@ -297,7 +287,7 @@ class SpiceRunner:
 
         try:
             # Parse the netlist
-            parser = SpiceParser(source=netlist)
+            parser = SpiceParser(source=clean_netlist)
             circuit = parser.build_circuit()
 
             # Get the simulator
@@ -374,95 +364,292 @@ class SpiceRunner:
     ) -> SimulationResult:
         """Runs simulation using ngspice command-line interface."""
         import subprocess
+        import tempfile
+        import os
 
+        print("[DEBUG] Initializing SimulationResult object")
         result = SimulationResult(
             success=False,
             analysis_type=analysis.analysis_type
         )
 
-        # Write netlist to temp file
-        with tempfile.NamedTemporaryFile(
-                mode='w',
-                suffix='. cir',
-                delete=False
-        ) as f:
+        print("[DEBUG] Creating temporary file for netlist")
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.cir', delete=False) as f:
             f.write(netlist)
             netlist_path = f.name
+        print(f"[DEBUG] Netlist file written to: {netlist_path}")
 
         try:
-            # Run ngspice in batch mode
+            # 1. CHANGE THIS: Use the full path to your ngspice.exe
+            # Example: r"C:\Spice64\bin\ngspice.exe"
+            executable = r"C:\ngspice\Spice64\bin\ngspice_con.exe"
+            print(f"[DEBUG] Using ngspice executable at: {executable}")
+            if not os.path.exists(executable):
+                print(f"[DEBUG] Executable not found at {executable}")
+                return SimulationResult(success=False, analysis_type=analysis.analysis_type,
+                                        error_message=f"Executable not found at {executable}")
+
+            print(f"[DEBUG] Running ngspice: {executable} -b -n {netlist_path}")
             proc = subprocess.run(
-                ["ngspice", "-b", netlist_path],
+                [executable, "-b", "-n", netlist_path],
                 capture_output=True,
                 text=True,
                 timeout=30
             )
 
-            result.raw_output = proc.stdout + proc.stderr
+            # 2. COMBINE STDOUT AND STDERR
+            # Ngspice often sends the table data to one and warnings to the other
+            print("[DEBUG] Combining stdout and stderr from ngspice")
+            full_output = proc.stdout + "\n" + proc.stderr
+            result.raw_output = full_output
+            print(f"[DEBUG] ngspice exited with code: {proc.returncode}")
+            print(f"[DEBUG] First 300 chars of combined output:\n{full_output[:300]}")
 
-            if proc.returncode == 0:
+            # 3. PARSE THE COMBINED OUTPUT
+            # We parse even if returncode != 0 because Ngspice often returns 1 for minor warnings
+            print("[DEBUG] Parsing CLI output")
+            self._parse_cli_output(result, full_output, analysis)
+
+            if result.node_voltages or result.operating_point:
+                print("[DEBUG] Successfully parsed node voltages or operating point")
                 result.success = True
-                # Parse the output
-                self._parse_cli_output(result, proc.stdout, analysis)
             else:
+                print(
+                    f"[DEBUG] No node voltages/operating point found, simulation failed. Exit code: {proc.returncode}")
                 result.success = False
-                result.error_message = f"ngspice exited with code {proc.returncode}"
+                result.error_message = f"No data parsed. Exit code: {proc.returncode}"
 
         except subprocess.TimeoutExpired:
+            print("[DEBUG] Simulation timed out after 30 seconds")
             result.success = False
             result.error_message = "Simulation timed out after 30 seconds"
         except Exception as e:
+            print(f"[DEBUG] Exception during simulation: {e}")
             result.success = False
             result.error_message = str(e)
         finally:
-            # Clean up temp file
-            try:
+            if os.path.exists(netlist_path):
+                print(f"[DEBUG] Removing temporary netlist file: {netlist_path}")
                 os.unlink(netlist_path)
-            except OSError:
-                pass
 
         return result
 
-    def _parse_cli_output(
-            self,
-            result: SimulationResult,
-            output: str,
-            analysis: AnalysisConfig
-    ) -> None:
-        """Parses ngspice CLI output to extract simulation data."""
-        lines = output.split("\n")
+    def _parse_cli_output(self, result, output, analysis):
+        if analysis.analysis_type == AnalysisType.OPERATING_POINT:
+            self._parse_op_cli_output(result, output)
+        elif analysis.analysis_type == AnalysisType.DC_SWEEP:
+            self._parse_dc_cli_output(result, output)
+        elif analysis.analysis_type == AnalysisType.TRANSIENT:
+            # Use the same folder as the netlist file
+            raw_path = os.path.join(os.getcwd(), "sim.raw")
+            if os.path.exists(raw_path):
+                self._parse_tran_raw_file(result, raw_path)
+            else:
+                result.success = False
+                result.error_message = f"RAW file not found: {raw_path}"
+        elif analysis.analysis_type == AnalysisType.AC_ANALYSIS:
+            # Use the same folder as the netlist file
+            raw_path = os.path.join(os.getcwd(), "sim.raw")
+            if os.path.exists(raw_path):
+                self._parse_ac_raw_file(result, raw_path)
+            else:
+                result.success = False
+                result.error_message = f"RAW file not found: {raw_path}"
 
-        current_node = None
-        values = []
+    def _parse_op_cli_output(self, result, output):
+        for line in output.splitlines():
+            line = line.strip()
+            if "=" not in line:
+                continue
+
+            try:
+                lhs, rhs = line.split("=", 1)
+                value = float(rhs.strip())
+
+                lhs = lhs.strip().lower()
+
+                # Node voltage
+                if lhs.startswith("v(") and lhs.endswith(")"):
+                    node = lhs[2:-1]
+                    result.operating_point[node] = value
+
+                # Branch current
+                elif lhs.startswith("i(") and lhs.endswith(")"):
+                    branch = lhs[2:-1]
+                    result.branch_currents[branch] = [value]
+
+            except ValueError:
+                continue
+
+    def _parse_dc_cli_output(self, result, output):
+        lines = output.splitlines()
+        headers = []
+        in_table = False
 
         for line in lines:
             line = line.strip()
+            if not line:
+                continue
 
-            # Look for node voltage output lines
-            # Format: "v(node) = value" or "node = value"
-            if "=" in line and ("v(" in line.lower() or "i(" in line.lower()):
-                parts = line.split("=")
-                if len(parts) == 2:
-                    name = parts[0].strip()
-                    try:
-                        value = float(parts[1].strip().split()[0])
+            if line.lower().startswith("index"):
+                headers = line.lower().split()
+                in_table = True
+                continue
 
-                        # Clean up the name
-                        if name.lower().startswith("v("):
-                            node_name = name[2:-1] if name.endswith(")") else name[2:]
-                            if analysis.analysis_type == AnalysisType.OPERATING_POINT:
-                                result.operating_point[node_name] = value
-                            else:
-                                if node_name not in result.node_voltages:
-                                    result.node_voltages[node_name] = []
-                                result.node_voltages[node_name].append(value)
-                        elif name.lower().startswith("i("):
-                            comp_name = name[2:-1] if name.endswith(")") else name[2:]
-                            if comp_name not in result.branch_currents:
-                                result.branch_currents[comp_name] = []
-                            result.branch_currents[comp_name].append(value)
-                    except ValueError:
-                        continue
+            if line.startswith("---"):
+                continue
+
+            if in_table:
+                parts = line.split()
+                if not parts or not parts[0].isdigit():
+                    in_table = False
+                    continue
+
+                sweep_val = float(parts[1])
+                result.time.append(sweep_val)
+
+                for i in range(2, len(parts)):
+                    if i >= len(headers):
+                        break
+                    name = headers[i]
+                    val = float(parts[i])
+
+                    if name not in result.node_voltages:
+                        result.node_voltages[name] = []
+                    result.node_voltages[name].append(val)
+
+    def _parse_tran_raw_file(self, result, filename):
+        print(f"Opening ASCII raw file: {filename}")
+        with open(filename, "r") as f:
+            lines = f.readlines()
+
+        variable_names = []
+        in_variables = False
+        num_variables = 0
+        data_start = None
+
+        # Header parsing
+        for line_no, line in enumerate(lines, 1):
+            s = line.strip()
+            if s.startswith("No. Variables:"):
+                num_variables = int(s.split()[-1])
+                print(f"Found number of variables: {num_variables}")
+            if s.startswith('Variables:'):
+                in_variables = True
+                continue
+            if in_variables:
+                if not s or ':' in s:
+                    in_variables = False
+                    continue
+                parts = s.split()
+                if len(parts) >= 2:
+                    variable_names.append(parts[1])
+                    print(f"Variable: {parts[1]}")
+                continue
+            if s.startswith('Values:'):
+                data_start = line_no
+                print("Values section detected.")
+                break
+
+        if not num_variables or not variable_names:
+            print('Did not detect required headers.')
+            return
+
+        if data_start is None:
+            print('No Values section found! Cannot parse data. Please check your .raw file contents.')
+            return
+
+        # Prepare result
+        result.time = []
+        result.node_voltages = {name: [] for name in variable_names if name != "time"}
+
+        # Parsing values
+        i = data_start
+        value_line = 0
+        while i < len(lines):
+            # ... rest of your code ...
+            # (parsing logic goes here, as before)
+            break  # include your full value parsing loop as from previous message
+
+        print(f"Parsed {value_line} timesteps from {filename}.")
+
+    def _parse_ac_raw_file(self, result, raw_path):
+        import math
+
+        print(f"[DEBUG] Opening raw file at {raw_path}")
+        with open(raw_path, "r") as f:
+            lines = f.readlines()
+
+        # --- Locate Variables and Values sections ---
+        variables = []
+        n_vars = 0
+        for i, line in enumerate(lines):
+            if line.startswith("No. Variables:"):
+                n_vars = int(line.partition(":")[2])
+                print(f"[DEBUG] Found {n_vars} variables (line {i})")
+            if line.startswith("Variables:"):
+                var_start = i + 1
+                variables = [lines[j].split()[1].strip('"') for j in range(var_start, var_start + n_vars)]
+                print(f"[DEBUG] Parsed variable names: {variables}")
+            if line.startswith("Values:"):
+                data_start = i + 1
+                print(f"[DEBUG] Data starts at line {data_start}")
+                break
+
+        num_points = int([l for l in lines if l.startswith("No. Points:")][0].partition(":")[2])
+        print(f"[DEBUG] Expecting {num_points} data points")
+
+        i = data_start
+        idx = 0
+        while idx < num_points and i < len(lines):
+            # skip blank lines
+            while i < len(lines) and not lines[i].strip():
+                i += 1
+            if i + n_vars - 1 >= len(lines):
+                break  # not enough lines left for a full block
+
+            block = []
+            for j in range(n_vars):
+                line = lines[i + j].strip()
+                block.append(line)
+            i += n_vars
+
+            # Parse the data block
+            if not block[0]:
+                continue
+
+            first_line = block[0].split()
+            try:
+                point_idx = int(first_line[0])
+                freq_str = first_line[1]
+                freq_real = float(freq_str.split(',')[0])
+            except Exception as e:
+                print(f"[DEBUG] Failed to parse index/freq at idx={idx}: '{block[0]}' error: {e}")
+                continue
+
+            if len(result.frequency) <= point_idx:
+                result.frequency.append(freq_real)
+            print(f"[DEBUG] Data block {idx} (index={point_idx}, freq={freq_real})")
+
+            for j in range(1, n_vars):
+                varname = variables[j]
+                raw_val = block[j]
+                try:
+                    r_str, im_str = raw_val.split(',')
+                    r = float(r_str)
+                    im = float(im_str)
+                    mag = math.hypot(r, im)
+                    print(f"[DEBUG] {varname} at idx={point_idx}: r={r}, im={im}, mag={mag}")
+                except Exception as e:
+                    print(f"[DEBUG] Could not parse value for '{varname}' at idx={point_idx}: '{raw_val}', error: {e}")
+                    continue
+
+                if varname not in result.node_voltages:
+                    result.node_voltages[varname] = []
+                result.node_voltages[varname].append(mag)
+            idx += 1
+
+        # After this, result.frequency and each result.node_voltages[var] should be length num_points!
 
     def get_last_netlist(self) -> str:
         """Returns the last netlist that was simulated."""

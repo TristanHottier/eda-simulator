@@ -9,9 +9,9 @@ from core.component import Component
 from ui.component_item import ComponentItem
 from ui.junction_item import JunctionItem
 from ui.pin_item import PinItem
-from ui. wire_segment_item import WireSegmentItem
-from ui. undo_commands import UndoStack, CreateWireCommand, DeleteItemsCommand, PasteItemsCommand, WireColorChangeCommand
-from ui. grid import GridItem
+from ui.wire_segment_item import WireSegmentItem
+from ui.undo_commands import UndoStack, CreateWireCommand, DeleteItemsCommand, PasteItemsCommand, WireColorChangeCommand
+from ui.grid import GridItem
 
 
 class SchematicView(QGraphicsView):
@@ -25,29 +25,29 @@ class SchematicView(QGraphicsView):
 
         # --- Scene & View Configuration ---
         self._scene = QGraphicsScene()
-        self. setScene(self._scene)
-        self. setSceneRect(-5000, -5000, 10000, 10000)
+        self.setScene(self._scene)
+        self.setSceneRect(-5000, -5000, 10000, 10000)
 
-        self. setBackgroundBrush(QColor(20, 20, 20))
+        self.setBackgroundBrush(QColor(20, 20, 20))
         self.setMouseTracking(True)
-        self.setRenderHints(QPainter. Antialiasing | QPainter.TextAntialiasing)
+        self.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing)
         self.setDragMode(QGraphicsView.RubberBandDrag)
 
         # Ensures zoom centers on the mouse cursor
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
 
         # --- Initialize Background Grid ---
-        self. grid_item = GridItem(self.GRID_SIZE)
+        self.grid_item = GridItem(self.GRID_SIZE)
         self._scene.addItem(self.grid_item)
 
         # --- Navigation State ---
-        self. zoom_step = 1.2
+        self.zoom_step = 1.2
         self.panning = False
         self.last_pan_point:  Optional[QPointF] = None
 
         # --- Circuit Data & State ---
-        self. components: List[Component] = []
-        self. undo_stack = UndoStack()
+        self.components: List[Component] = []
+        self.undo_stack = UndoStack()
         self.mode = "component"
 
         self.next_net_id = 1
@@ -56,7 +56,7 @@ class SchematicView(QGraphicsView):
         self.junctions: List[JunctionItem] = []
 
         self.drawing_wire = False
-        self. wire_start_pos: Optional[QPointF] = None
+        self.wire_start_pos: Optional[QPointF] = None
         self.preview_wire:  Optional[WireSegmentItem] = None
 
         # --- Wire Color ---
@@ -82,13 +82,13 @@ class SchematicView(QGraphicsView):
 
         # Update all junctions
         for junction in self.junctions:
-            junction. set_dark_mode(dark)
+            junction.set_dark_mode(dark)
 
         # Update all component pins
-        for item in self._scene. items():
+        for item in self._scene.items():
             if isinstance(item, ComponentItem):
                 for pin_item in item.pin_items:
-                    pin_item. set_dark_mode(dark)
+                    pin_item.set_dark_mode(dark)
 
     def wheelEvent(self, event: QWheelEvent) -> None:
         """Handles zooming via the mouse scroll wheel."""
@@ -105,7 +105,7 @@ class SchematicView(QGraphicsView):
         Calculates the snapping target.
         Prioritizes pins, then falls back to the 25px wire grid.
         """
-        # 1. Check for nearby pins (Proximity Snap)
+        # 1.Check for nearby pins (Proximity Snap)
         snap_radius = 10
         search_area = QRectF(pt.x() - snap_radius, pt.y() - snap_radius,
                              snap_radius * 2, snap_radius * 2)
@@ -114,20 +114,20 @@ class SchematicView(QGraphicsView):
             if hasattr(item, "scene_connection_point"):
                 return item.scene_connection_point()
 
-        # 2.  Fallback to updated 25px Wire Grid Snap
+        # 2. Fallback to updated 25px Wire Grid Snap
         x = round(pt.x() / self.GRID_SIZE) * self.GRID_SIZE
         y = round(pt.y() / self.GRID_SIZE) * self.GRID_SIZE
         return QPointF(x, y)
 
     def mousePressEvent(self, event):
-        scene_pos = self. mapToScene(event.pos())
+        scene_pos = self.mapToScene(event.pos())
         snapped_pos = self._snap_point(scene_pos)
 
         if event.button() == Qt.MiddleButton or (
                 event.button() == Qt.LeftButton and event.modifiers() == Qt.AltModifier):
             self.panning = True
             self.last_pan_point = event.pos()
-            self.setCursor(Qt. ClosedHandCursor)
+            self.setCursor(Qt.ClosedHandCursor)
             return
 
         if self.mode == "wire" and event.button() == Qt.LeftButton:
@@ -143,14 +143,14 @@ class SchematicView(QGraphicsView):
             self._check_and_split_wire(pos)
 
             self.drawing_wire = True
-            self. wire_start_pos = pos
+            self.wire_start_pos = pos
             # Create preview wire with current color
             self.preview_wire = WireSegmentItem(
-                pos. x(), pos.y(), pos.x(), pos.y(),
+                pos.x(), pos.y(), pos.x(), pos.y(),
                 preview=True,
                 color=self._current_wire_color
             )
-            self._scene. addItem(self. preview_wire)
+            self._scene.addItem(self.preview_wire)
         else:
             self._finalize_wire(pos)
 
@@ -169,7 +169,7 @@ class SchematicView(QGraphicsView):
             color=self._current_wire_color
         )
         self.register_wire_connection(new_wire)
-        self. undo_stack.push(CreateWireCommand(self, new_wire))
+        self.undo_stack.push(CreateWireCommand(self, new_wire))
 
         self.wire_start_pos = end_pos
         if self.preview_wire:
@@ -180,7 +180,7 @@ class SchematicView(QGraphicsView):
 
     def _check_and_split_wire(self, pos: QPointF):
         """Detects if a point intersects a wire body and splits it to allow a junction."""
-        for item in self. scene().items(pos):
+        for item in self.scene().items(pos):
             if isinstance(item, WireSegmentItem) and not item.preview:
                 line = item.line()
                 p1, p2 = line.p1(), line.p2()
@@ -219,7 +219,7 @@ class SchematicView(QGraphicsView):
         p2 = (wire.line().x2(), wire.line().y2())
 
         # Logic for Net assignment
-        net1 = self.point_to_net. get(p1)
+        net1 = self.point_to_net.get(p1)
         net2 = self.point_to_net.get(p2)
 
         if net1 and net2 and net1 != net2:
@@ -251,7 +251,7 @@ class SchematicView(QGraphicsView):
         Fix:  Updates permanent wire geometry and anchors the preview wire.
         """
         old_pt = (old_pos.x(), old_pos.y())
-        new_pt = (new_pos. x(), new_pos.y())
+        new_pt = (new_pos.x(), new_pos.y())
 
         for item in self._scene.items():
             if isinstance(item, WireSegmentItem) and not item.preview:
@@ -260,7 +260,7 @@ class SchematicView(QGraphicsView):
                 p2 = line.p2()
                 changed = False
 
-                # 1. Update permanent wire geometry (Erase old / Draw new)
+                # 1.Update permanent wire geometry (Erase old / Draw new)
                 if p1 == old_pos:
                     p1 = new_pos
                     changed = True
@@ -274,12 +274,12 @@ class SchematicView(QGraphicsView):
 
                     # Update logical net mapping
                     if old_pt in self.point_to_net:
-                        net_id = self.point_to_net. get(old_pt)
+                        net_id = self.point_to_net.get(old_pt)
                         # We use setdefault or simple assignment to ensure the new point is mapped
-                        self. point_to_net[new_pt] = net_id
+                        self.point_to_net[new_pt] = net_id
 
-        # 2. Update the preview wire anchor (The wire being currently drawn)
-        if self.drawing_wire and self. preview_wire:
+        # 2.Update the preview wire anchor (The wire being currently drawn)
+        if self.drawing_wire and self.preview_wire:
             if self.wire_start_pos == old_pos:
                 self.wire_start_pos = new_pos
 
@@ -287,7 +287,7 @@ class SchematicView(QGraphicsView):
             # Anchor (p1) follows the junction, head (p2) stays at current mouse snap
             self.preview_wire.setLine(
                 self.wire_start_pos.x(),
-                self.wire_start_pos. y(),
+                self.wire_start_pos.y(),
                 current_line.x2(),
                 current_line.y2()
             )
@@ -296,13 +296,13 @@ class SchematicView(QGraphicsView):
         """
         Ensures exactly one JunctionItem exists at every wire endpoint coordinate.
         """
-        # 1. Clear existing junctions from the scene
+        # 1.Clear existing junctions from the scene
         for j in self.junctions:
-            if j. scene():
+            if j.scene():
                 self._scene.removeItem(j)
-        self.junctions. clear()
+        self.junctions.clear()
 
-        # 2. Identify all unique endpoints currently in use by wires
+        # 2.Identify all unique endpoints currently in use by wires
         active_points = set()
         for item in self._scene.items():
             if isinstance(item, WireSegmentItem) and not item.preview:
@@ -310,26 +310,26 @@ class SchematicView(QGraphicsView):
                 active_points.add((line.x1(), line.y1()))
                 active_points.add((line.x2(), line.y2()))
 
-        # 3. Create one junction dot per unique coordinate
+        # 3.Create one junction dot per unique coordinate
         # This naturally handles "sharing" because a set only stores unique values
         for pt in active_points:
             j = JunctionItem(pt[0], pt[1])
             j.set_dark_mode(self._dark_mode)  # Apply current theme
-            self. junctions.append(j)
-            self._scene. addItem(j)
+            self.junctions.append(j)
+            self._scene.addItem(j)
 
     def _merge_nets(self, net_keep: int, net_remove: int):
         """Unifies two nets into one when they are connected by a new wire."""
-        wires_to_move = self.net_to_wires. pop(net_remove, [])
+        wires_to_move = self.net_to_wires.pop(net_remove, [])
         for w in wires_to_move:
             w.net_id = net_keep
-            self. net_to_wires[net_keep].append(w)
+            self.net_to_wires[net_keep].append(w)
             # Update all endpoint mappings for moved wires
             self.point_to_net[(w.line().x1(), w.line().y1())] = net_keep
             self.point_to_net[(w.line().x2(), w.line().y2())] = net_keep
 
     def mouseMoveEvent(self, event):
-        scene_pos = self. mapToScene(event.pos())
+        scene_pos = self.mapToScene(event.pos())
         if self.panning and self.last_pan_point:
             delta = event.pos() - self.last_pan_point
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
@@ -338,7 +338,7 @@ class SchematicView(QGraphicsView):
             return
         if self.mode == "wire" and self.drawing_wire and self.preview_wire:
             snapped = self._snap_point(scene_pos)
-            self. preview_wire.setLine(self.wire_start_pos.x(), self.wire_start_pos.y(), snapped.x(), snapped.y())
+            self.preview_wire.setLine(self.wire_start_pos.x(), self.wire_start_pos.y(), snapped.x(), snapped.y())
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
@@ -375,7 +375,7 @@ class SchematicView(QGraphicsView):
         """
         Exits the wire creation state and removes temporary UI elements.
         """
-        if self. preview_wire:
+        if self.preview_wire:
             # Remove the dashed 'rubber-band' line from the scene
             if self.preview_wire.scene():
                 self._scene.removeItem(self.preview_wire)
@@ -391,7 +391,7 @@ class SchematicView(QGraphicsView):
     def set_selected_wire_color_qcolor(self, color: QColor) -> None:
         """Changes the color of all selected wires using a QColor."""
         selected_wires = [
-            item for item in self. scene().selectedItems()
+            item for item in self.scene().selectedItems()
             if isinstance(item, WireSegmentItem) and not item.preview
         ]
 
@@ -422,7 +422,7 @@ class SchematicView(QGraphicsView):
         Returns:
             int: The grid size (10px or 50px).
         """
-        selected_items = self. scene().selectedItems()
+        selected_items = self.scene().selectedItems()
 
         # Check if at least one component is selected
         for item in selected_items:
@@ -433,25 +433,25 @@ class SchematicView(QGraphicsView):
         return 10
 
     def load_from_json(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open Schematic", "", "JSON Files (*. json)")
+        path, _ = QFileDialog.getOpenFileName(self, "Open Schematic", "", "JSON Files (*.json)")
         if not path:  return
         with open(path, 'r') as f:
             data = json.load(f)
         self._scene.clear()
-        self. components.clear()
-        self. point_to_net. clear()
+        self.components.clear()
+        self.point_to_net.clear()
         self.net_to_wires.clear()
         self._scene.addItem(GridItem(self.GRID_SIZE))
-        for c_data in data. get("components", []):
-            model = Component(c_data["ref"], comp_type=c_data["comp_type"], parameters=c_data. get("parameters"))
+        for c_data in data.get("components", []):
+            model = Component(c_data["ref"], comp_type=c_data["comp_type"], parameters=c_data.get("parameters"))
             self.components.append(model)
             item = ComponentItem(model)
             item.setPos(c_data["x"], c_data["y"])
-            item.setRotation(c_data. get("rotation", 0))
+            item.setRotation(c_data.get("rotation", 0))
             item.set_dark_mode(self._dark_mode)  # Apply current theme
-            self._scene. addItem(item)
+            self._scene.addItem(item)
         for w_data in data.get("wires", []):
-            color = QColor(w_data. get("color", "#ff0000")) if w_data. get("color") else None
+            color = QColor(w_data.get("color", "#ff0000")) if w_data.get("color") else None
             wire = WireSegmentItem(
                 w_data["x1"], w_data["y1"], w_data["x2"], w_data["y2"],
                 net_id=w_data["net_id"],
@@ -472,9 +472,9 @@ class SchematicView(QGraphicsView):
             if isinstance(item, ComponentItem):
                 components_data.append({
                     "ref": item.model.ref,
-                    "comp_type": item.model. type,
+                    "comp_type": item.model.type,
                     "x": item.pos().x(),
-                    "y": item. pos().y(),
+                    "y": item.pos().y(),
                     "rotation":  item.rotation(),
                     "parameters": item.model.parameters
                 })
@@ -485,11 +485,11 @@ class SchematicView(QGraphicsView):
             if isinstance(item, WireSegmentItem) and not item.preview:
                 line = item.line()
                 wires_data.append({
-                    "x1": line. x1(),
+                    "x1": line.x1(),
                     "y1":  line.y1(),
                     "x2": line.x2(),
                     "y2": line.y2(),
-                    "net_id": item. net_id,
+                    "net_id": item.net_id,
                     "color": item.color_hex  # Save as hex string
                 })
 
@@ -517,12 +517,12 @@ class SchematicView(QGraphicsView):
         for item in selected:
             if isinstance(item, ComponentItem):
                 components_data.append({
-                    "ref": item.model. ref,
+                    "ref": item.model.ref,
                     "comp_type":  item.model.type,
                     "x": item.pos().x(),
                     "y": item.pos().y(),
                     "rotation": item.rotation(),
-                    "parameters": dict(item.model. parameters)
+                    "parameters": dict(item.model.parameters)
                 })
             elif isinstance(item, WireSegmentItem) and not item.preview:
                 line = item.line()
@@ -530,9 +530,9 @@ class SchematicView(QGraphicsView):
                     "x1": line.x1(),
                     "y1": line.y1(),
                     "x2": line.x2(),
-                    "y2": line. y2(),
+                    "y2": line.y2(),
                     "net_id": item.net_id,
-                    "color": item. color_hex  # Copy as hex string
+                    "color": item.color_hex  # Copy as hex string
                 })
 
         self.clipboard = {
@@ -558,9 +558,9 @@ class SchematicView(QGraphicsView):
         existing_refs = {item.model.ref for item in self._scene.items() if isinstance(item, ComponentItem)}
 
         # Paste components
-        for c_data in self. clipboard. get("components", []):
+        for c_data in self.clipboard.get("components", []):
             # Generate a unique reference
-            base_ref = c_data["ref"]. rstrip("0123456789")
+            base_ref = c_data["ref"].rstrip("0123456789")
             counter = 1
             new_ref = f"{base_ref}{counter}"
             while new_ref in existing_refs:
@@ -572,7 +572,7 @@ class SchematicView(QGraphicsView):
             model = Component(
                 new_ref,
                 comp_type=c_data["comp_type"],
-                parameters=dict(c_data. get("parameters", {}))
+                parameters=dict(c_data.get("parameters", {}))
             )
             self.components.append(model)
 
@@ -598,7 +598,7 @@ class SchematicView(QGraphicsView):
 
         # Execute paste via undo command
         if new_component_items or new_wire_items:
-            self. undo_stack. push(PasteItemsCommand(self, new_component_items, new_wire_items))
+            self.undo_stack.push(PasteItemsCommand(self, new_component_items, new_wire_items))
 
             # Select all junctions that were created for the pasted wires
             self._select_pasted_junctions(new_wire_items)
@@ -610,10 +610,10 @@ class SchematicView(QGraphicsView):
         for wire in pasted_wires:
             line = wire.line()
             pasted_endpoints.add((line.x1(), line.y1()))
-            pasted_endpoints.add((line. x2(), line.y2()))
+            pasted_endpoints.add((line.x2(), line.y2()))
 
         # Select junctions at those endpoints
         for junction in self.junctions:
             junction_pos = (junction.pos().x(), junction.pos().y())
             if junction_pos in pasted_endpoints:
-                junction. setSelected(True)
+                junction.setSelected(True)

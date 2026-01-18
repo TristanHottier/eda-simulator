@@ -15,13 +15,13 @@ except ImportError:
 
 
 @unittest.skipUnless(GUI_AVAILABLE, "PySide6 not available")
-class TestSimulationPanel(unittest. TestCase):
+class TestSimulationPanel(unittest.TestCase):
     """Tests for SimulationPanel widget."""
 
     @classmethod
     def setUpClass(cls):
         """Create QApplication for tests."""
-        if not QApplication. instance():
+        if not QApplication.instance():
             cls.app = QApplication(sys.argv)
         else:
             cls.app = QApplication.instance()
@@ -92,7 +92,7 @@ class TestSimulationPanel(unittest. TestCase):
         # isHidden() returns the widget's own hidden state
 
         # Operating Point (index 0) - no params visible
-        panel._analysis_combo. setCurrentIndex(0)
+        panel._analysis_combo.setCurrentIndex(0)
         panel._on_analysis_changed(0)
         self.assertTrue(panel._transient_group.isHidden())
         self.assertTrue(panel._ac_group.isHidden())
@@ -101,7 +101,7 @@ class TestSimulationPanel(unittest. TestCase):
         # Transient (index 1) - transient params visible
         panel._analysis_combo.setCurrentIndex(1)
         panel._on_analysis_changed(1)
-        self.assertFalse(panel._transient_group. isHidden())
+        self.assertFalse(panel._transient_group.isHidden())
         self.assertTrue(panel._ac_group.isHidden())
         self.assertTrue(panel._dc_group.isHidden())
 
@@ -128,14 +128,14 @@ class TestSimulationPanel(unittest. TestCase):
         mock_view = MagicMock()
         panel = SimulationPanel(mock_view)
 
-        panel._analysis_combo. setCurrentIndex(0)  # Operating Point
+        panel._analysis_combo.setCurrentIndex(0)  # Operating Point
         config = panel._build_analysis_config()
 
-        self.assertEqual(config. analysis_type, AnalysisType. OPERATING_POINT)
+        self.assertEqual(config.analysis_type, AnalysisType.OPERATING_POINT)
 
     def test_build_transient_config(self):
         """Test building transient config."""
-        from app. simulation_panel import SimulationPanel
+        from app.simulation_panel import SimulationPanel
         from simulation.spice_runner import AnalysisType
         from unittest.mock import MagicMock
 
@@ -143,18 +143,18 @@ class TestSimulationPanel(unittest. TestCase):
         panel = SimulationPanel(mock_view)
 
         panel._analysis_combo.setCurrentIndex(1)  # Transient
-        panel._tran_step. setText("1u")
+        panel._tran_step.setText("1u")
         panel._tran_stop.setText("10m")
 
         config = panel._build_analysis_config()
 
-        self.assertEqual(config.analysis_type, AnalysisType. TRANSIENT)
-        self.assertAlmostEqual(config. step_time, 1e-6)
+        self.assertEqual(config.analysis_type, AnalysisType.TRANSIENT)
+        self.assertAlmostEqual(config.step_time, 1e-6)
         self.assertAlmostEqual(config.stop_time, 10e-3)
 
 
 @unittest.skipUnless(GUI_AVAILABLE, "PySide6 not available")
-class TestSimulationWorker(unittest. TestCase):
+class TestSimulationWorker(unittest.TestCase):
     """Tests for SimulationWorker."""
 
     @classmethod
@@ -167,7 +167,7 @@ class TestSimulationWorker(unittest. TestCase):
 
     def test_worker_creation(self):
         """Test worker can be created."""
-        from app. simulation_panel import SimulationWorker
+        from app.simulation_panel import SimulationWorker
         from simulation.spice_runner import SpiceRunner
 
         config = SpiceRunner.create_op_config()
@@ -177,4 +177,4 @@ class TestSimulationWorker(unittest. TestCase):
 
 
 if __name__ == "__main__":
-    unittest. main()
+    unittest.main()

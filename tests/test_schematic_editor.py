@@ -549,7 +549,7 @@ class TestSchematicViewSaveLoad(unittest.TestCase):
 
     def test_save_load_wire_with_color(self):
         """Test that wire color is preserved in save/load."""
-        temp_file = os.path.join(self.temp_dir, "test_wire. json")
+        temp_file = os.path.join(self.temp_dir, "test_wire.json")
 
         data = {
             "version": "0.1",

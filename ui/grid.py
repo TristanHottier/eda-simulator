@@ -41,15 +41,15 @@ class GridItem(QGraphicsItem):
             pen = QPen(QColor(200, 200, 200), 0)  # Light gray lines on light background
 
         painter.setPen(pen)
-        painter.setRenderHint(QPainter. Antialiasing, False)
+        painter.setRenderHint(QPainter.Antialiasing, False)
 
         # Optimization: Only draw the portion of the grid currently visible in the viewport
         visible_rect = option.exposedRect
 
-        left = int(visible_rect. left()) - (int(visible_rect. left()) % self.spacing)
+        left = int(visible_rect.left()) - (int(visible_rect.left()) % self.spacing)
         top = int(visible_rect.top()) - (int(visible_rect.top()) % self.spacing)
         right = int(visible_rect.right())
-        bottom = int(visible_rect. bottom())
+        bottom = int(visible_rect.bottom())
 
         # Draw vertical lines
         for x in range(left, right + 5 * self.spacing, 5 * self.spacing):

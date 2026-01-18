@@ -24,10 +24,10 @@ class Component:
     def __init__(self, ref: str, pins: Optional[List[Pin]] = None,
                  parameters:  Optional[Dict[str, Any]] = None, comp_type: str = "generic"):
         self.ref = ref
-        self.type = comp_type. lower()
+        self.type = comp_type.lower()
 
         # Merge default parameters
-        base_params = self. DEFAULT_PARAMS. get(self.type, self. DEFAULT_PARAMS["generic"])
+        base_params = self.DEFAULT_PARAMS.get(self.type, self.DEFAULT_PARAMS["generic"])
         self.parameters = {**base_params, **(parameters or {})}
 
         # FIX: Automatically generate entry and exit pins if none are provided
@@ -70,12 +70,12 @@ class Component:
 
     def all_parameters(self):
         """Return all parameter key-value pairs (view object)."""
-        return self.parameters. items()
+        return self.parameters.items()
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "ref": self.ref,
-            "comp_type": self. type,
+            "comp_type": self.type,
             "parameters": self.parameters,
             "pins":  [{"name": p.name, "x": p.rel_x, "y": p.rel_y} for p in self.pins]
         }

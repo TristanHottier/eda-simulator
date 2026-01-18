@@ -285,7 +285,7 @@ class WaveformGroup:
         return self.waveforms.get(name)
 
     def remove_waveform(self, name: str) -> bool:
-        """Removes a waveform by name.  Returns True if removed."""
+        """Removes a waveform by name. Returns True if removed."""
         if name in self.waveforms:
             del self.waveforms[name]
             return True

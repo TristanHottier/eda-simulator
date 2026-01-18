@@ -1,4 +1,4 @@
-# app/simulation_panel. py
+# app/simulation_panel.py
 """
 Simulation Panel — UI controls for running SPICE simulations.
 
@@ -170,7 +170,7 @@ class SimulationPanel(QWidget):
         form.addRow("Step Time:", self._tran_step)
 
         self._tran_stop = QLineEdit("10m")
-        self._tran_stop.setToolTip("Stop time (e. g., 1m, 100u, 10s)")
+        self._tran_stop.setToolTip("Stop time (e.g., 1m, 100u, 10s)")
         form.addRow("Stop Time:", self._tran_stop)
 
         return group
@@ -378,6 +378,8 @@ class SimulationPanel(QWidget):
 
         # Convert to SimulationData and emit
         sim_data = SimulationData.from_simulation_result(result, "Simulation Results")
+        print(f"--- SIGNAL DEBUG ---")
+        print(f"Emitting data for analysis: {sim_data}")
         self.simulation_completed.emit(sim_data)
 
         self._status_label.setText("Simulation complete")

@@ -323,4 +323,4 @@ class WireColorChangeCommand:
 
     def redo(self):
         for wire in self.wires:
-            wire.set_color(self. new_color)
+            wire.set_color(self.new_color)
