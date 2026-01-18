@@ -1,4 +1,4 @@
-# app/component_palette. py
+# app/component_palette.py
 from typing import TYPE_CHECKING
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QLabel, QFrame, QColorDialog
@@ -45,10 +45,28 @@ class ComponentPalette(QWidget):
 
         # --- Component Section ---
         layout.addWidget(QLabel("<b>Components</b>"))
-        component_types = ["Resistor", "Capacitor", "LED", "Inductor"]
+        component_types = ["Resistor", "Capacitor", "LED", "Inductor", "Ground"]
         for comp_type in component_types:
             btn = QPushButton(comp_type)
             # Use default argument in lambda to capture the current string value
+            btn.clicked.connect(lambda checked, t=comp_type:  self.add_component(t))
+            layout.addWidget(btn)
+
+        # Separator for Sources section
+        line_sources = QFrame()
+        line_sources.setFrameShape(QFrame.HLine)
+        line_sources.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line_sources)
+
+        # --- Sources Section ---
+        layout.addWidget(QLabel("<b>Sources</b>"))
+        source_types = [
+            ("DC Voltage", "dc_voltage_source"),
+            ("AC Voltage", "ac_voltage_source"),
+            ("DC Current", "dc_current_source")
+        ]
+        for display_name, comp_type in source_types:
+            btn = QPushButton(display_name)
             btn.clicked.connect(lambda checked, t=comp_type: self.add_component(t))
             layout.addWidget(btn)
 
@@ -99,7 +117,15 @@ class ComponentPalette(QWidget):
     def add_component(self, comp_type: str) -> None:
         """Instantiates a new component at the center of the current view."""
         # Create logical model
-        ref_prefix = comp_type[0].upper()
+        # Determine reference prefix based on component type
+        ref_prefixes = {
+            "ground": "GND",
+            "dc_voltage_source":  "V",
+            "ac_voltage_source": "V",
+            "dc_current_source": "I"
+        }
+        ref_prefix = ref_prefixes.get(comp_type.lower(), comp_type[0].upper())
+
         existing_count = sum(1 for c in self.schematic_view.components if c.type == comp_type.lower())
         ref_designator = f"{ref_prefix}{existing_count + 1}"
 

@@ -1,22 +1,43 @@
 # ui/component_item. py
 from typing import Optional, Any, List
-from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem
+from PySide6.QtWidgets import (
+    QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem,
+    QGraphicsPolygonItem, QGraphicsEllipseItem, QGraphicsLineItem,
+    QGraphicsPathItem
+)
 from PySide6.QtCore import Qt, QPointF
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush, QColor, QPolygonF, QPen, QFont, QPainterPath
 from ui. undo_commands import MoveComponentCommand, RotateComponentCommand
-from ui.pin_item import PinItem  # Ensure PinItem is imported
+from ui.pin_item import PinItem
 
 
 class ComponentItem(QGraphicsRectItem):
     GRID_SIZE = 50
-    UNIT_MAP = {"resistance": "Ω", "capacitance": "nF", "voltage_drop": "V", "inductance": "mH"}
+    UNIT_MAP = {
+        "resistance": "Ω",
+        "capacitance": "nF",
+        "voltage_drop": "V",
+        "inductance": "mH",
+        "voltage":  "V",
+        "frequency": "Hz",
+        "current": "A"
+    }
 
     def __init__(self, component_model, width:  int = 100, height: int = 50):
+        # Ground component has different dimensions
+        if component_model.type == "ground":
+            width = 50
+            height = 30
+        # Voltage and current sources:  2x1 grid (50x100)
+        elif component_model.type in ("dc_voltage_source", "ac_voltage_source", "dc_current_source"):
+            width = 50
+            height = 100
+
         super().__init__(0, 0, width, height)
         self.model = component_model
         self.ref:  str = self.model.ref
         self.old_pos: Optional[QPointF] = None
-        self._is_being_moved_by_master = False  # Flag to prevent recursive snapping
+        self._is_being_moved_by_master = False
 
         # --- Flags ---
         self.setFlags(
@@ -31,47 +52,505 @@ class ComponentItem(QGraphicsRectItem):
         self.setTransformOriginPoint(width / 2, height / 2)
         self.setAcceptedMouseButtons(Qt. LeftButton)
 
-        # --- Visuals ---
-        self.setBrush(QBrush(QColor("#ffeeaa")))
-        self.setPen(QColor("black"))
+        # --- Visuals:  Transparent bounding box for all components ---
+        self.setBrush(QBrush(Qt.transparent))
+        self.setPen(QPen(Qt. NoPen))
+
+        # Create appropriate symbol based on component type
+        self._create_symbol(width, height)
 
         # --- Label ---
         self. label = QGraphicsTextItem("", self)
         self.refresh_label()
 
-        # --- FIX: Restore Pins ---
-        # Iterate through the logic model's pins and create visual PinItems
-        self.pin_items: List[PinItem] = []
-        for pin_logic in self.model.pins:
-            # pin_logic provides rel_x and rel_y (offsets from component origin)
-            p_item = PinItem(pin_logic, pin_logic.rel_x, pin_logic.rel_y, self)
-            self.pin_items. append(p_item)
+        # --- Pins ---
+        self. pin_items:  List[PinItem] = []
+        for pin_logic in self.model. pins:
+            p_item = PinItem(pin_logic, pin_logic.rel_x, pin_logic. rel_y, self)
+            self.pin_items.append(p_item)
+
+    def _create_symbol(self, width:  int, height: int) -> None:
+        """Creates the appropriate schematic symbol based on component type."""
+        comp_type = self. model.type
+
+        if comp_type == "resistor":
+            self._create_resistor_symbol(width, height)
+        elif comp_type == "capacitor":
+            self._create_capacitor_symbol(width, height)
+        elif comp_type == "inductor":
+            self._create_inductor_symbol(width, height)
+        elif comp_type == "led":
+            self._create_led_symbol(width, height)
+        elif comp_type == "ground":
+            self._create_ground_symbol(width, height)
+        elif comp_type in ("dc_voltage_source", "ac_voltage_source"):
+            self._create_voltage_source_symbol(width, height)
+        elif comp_type == "dc_current_source":
+            self._create_current_source_symbol(width, height)
+        else:
+            self._create_generic_symbol(width, height)
+
+    def _create_resistor_symbol(self, width: int, height: int) -> None:
+        """Creates a proper zigzag resistor symbol (US style)."""
+        pen = QPen(QColor("black"), 2)
+        center_y = height / 2
+
+        # Lead-in line (left side)
+        lead_length = 15
+        self.resistor_lead_left = QGraphicsLineItem(0, center_y, lead_length, center_y, self)
+        self.resistor_lead_left.setPen(pen)
+
+        # Zigzag pattern:  center -> up -> down -> up -> down -> up -> down -> center
+        # Total segments: half-up, full-down, full-up, full-down, full-up, full-down, half-up
+        # That's 0. 5 + 1 + 1 + 1 + 1 + 1 + 0.5 = 6 full segment widths
+        zigzag_start = lead_length
+        zigzag_end = width - lead_length
+        zigzag_width = zigzag_end - zigzag_start
+        peak_height = 10
+
+        # 6 full peaks worth of horizontal distance
+        num_half_segments = 12  # Each peak-to-peak is 2 half-segments
+        half_segment_width = zigzag_width / num_half_segments
+
+        path = QPainterPath()
+        path.moveTo(zigzag_start, center_y)
+
+        # Half segment:  center to first peak (up)
+        path.lineTo(zigzag_start + half_segment_width, center_y - peak_height)
+
+        # Full segments:  peak to peak (6 full peaks)
+        current_x = zigzag_start + half_segment_width
+        going_down = True  # Next direction after first peak
+
+        for i in range(5):  # 5 full peak-to-peak segments
+            current_x += 2 * half_segment_width
+            if going_down:
+                path.lineTo(current_x, center_y + peak_height)
+            else:
+                path.lineTo(current_x, center_y - peak_height)
+            going_down = not going_down
+
+        # Half segment: last peak back to center
+        path.lineTo(zigzag_end, center_y)
+
+        self.resistor_zigzag = QGraphicsPathItem(path, self)
+        self.resistor_zigzag.setPen(pen)
+        self.resistor_zigzag.setBrush(QBrush(Qt.NoBrush))
+
+        # Lead-out line (right side)
+        self.resistor_lead_right = QGraphicsLineItem(zigzag_end, center_y, width, center_y, self)
+        self.resistor_lead_right.setPen(pen)
+
+    def _create_capacitor_symbol(self, width: int, height: int) -> None:
+        """Creates a capacitor symbol with two parallel plates."""
+        pen = QPen(QColor("black"), 2)
+        center_x = width / 2
+        center_y = height / 2
+        plate_gap = 8
+        plate_height = 30
+
+        # Left lead
+        self.cap_lead_left = QGraphicsLineItem(0, center_y, center_x - plate_gap, center_y, self)
+        self.cap_lead_left.setPen(pen)
+
+        # Left plate (straight line)
+        self.cap_plate_left = QGraphicsLineItem(
+            center_x - plate_gap, center_y - plate_height / 2,
+            center_x - plate_gap, center_y + plate_height / 2,
+            self
+        )
+        self.cap_plate_left.setPen(QPen(QColor("black"), 3))
+
+        # Right plate (straight line)
+        self.cap_plate_right = QGraphicsLineItem(
+            center_x + plate_gap, center_y - plate_height / 2,
+            center_x + plate_gap, center_y + plate_height / 2,
+            self
+        )
+        self.cap_plate_right.setPen(QPen(QColor("black"), 3))
+
+        # Right lead
+        self. cap_lead_right = QGraphicsLineItem(center_x + plate_gap, center_y, width, center_y, self)
+        self.cap_lead_right.setPen(pen)
+
+    def _create_inductor_symbol(self, width: int, height: int) -> None:
+        """Creates an inductor symbol with semicircular coils."""
+        pen = QPen(QColor("black"), 2)
+        center_y = height / 2
+
+        # Lead-in line
+        lead_length = 15
+        self. inductor_lead_left = QGraphicsLineItem(0, center_y, lead_length, center_y, self)
+        self.inductor_lead_left. setPen(pen)
+
+        # Coils (4 humps)
+        coil_start = lead_length
+        coil_end = width - lead_length
+        coil_width = coil_end - coil_start
+        num_coils = 4
+        coil_diameter = coil_width / num_coils
+
+        path = QPainterPath()
+        path.moveTo(coil_start, center_y)
+
+        for i in range(num_coils):
+            arc_start_x = coil_start + i * coil_diameter
+            # Draw semicircle arc (hump) above the line
+            path.arcTo(
+                arc_start_x, center_y - coil_diameter / 2,
+                coil_diameter, coil_diameter,
+                180, -180
+            )
+
+        self.inductor_coils = QGraphicsPathItem(path, self)
+        self.inductor_coils.setPen(pen)
+        self.inductor_coils.setBrush(QBrush(Qt.NoBrush))
+
+        # Lead-out line
+        self.inductor_lead_right = QGraphicsLineItem(coil_end, center_y, width, center_y, self)
+        self.inductor_lead_right.setPen(pen)
+
+    def _create_led_symbol(self, width: int, height:  int) -> None:
+        """Creates an LED symbol (diode with arrows indicating light emission)."""
+        pen = QPen(QColor("black"), 2)
+        center_x = width / 2
+        center_y = height / 2
+        triangle_size = 20
+
+        # Left lead
+        self. led_lead_left = QGraphicsLineItem(0, center_y, center_x - triangle_size / 2, center_y, self)
+        self.led_lead_left.setPen(pen)
+
+        # Triangle (pointing right)
+        triangle = QPolygonF([
+            QPointF(center_x - triangle_size / 2, center_y - triangle_size / 2),
+            QPointF(center_x - triangle_size / 2, center_y + triangle_size / 2),
+            QPointF(center_x + triangle_size / 2, center_y)
+        ])
+        self.led_triangle = QGraphicsPolygonItem(triangle, self)
+        self.led_triangle.setPen(pen)
+        self.led_triangle.setBrush(QBrush(QColor("#ffdd44")))  # Yellow fill for LED
+
+        # Vertical bar (cathode)
+        self.led_bar = QGraphicsLineItem(
+            center_x + triangle_size / 2, center_y - triangle_size / 2,
+            center_x + triangle_size / 2, center_y + triangle_size / 2,
+            self
+        )
+        self.led_bar.setPen(QPen(QColor("black"), 3))
+
+        # Right lead
+        self.led_lead_right = QGraphicsLineItem(center_x + triangle_size / 2, center_y, width, center_y, self)
+        self.led_lead_right.setPen(pen)
+
+        # Light emission arrows - complete arrows with proper heads
+        arrow_pen = QPen(QColor("black"), 1.5)
+
+        # Arrow 1 - starts from top-right of triangle
+        arrow1_start_x = center_x
+        arrow1_start_y = center_y - triangle_size / 2 - 2
+        arrow1_end_x = arrow1_start_x + 15
+        arrow1_end_y = arrow1_start_y - 12
+
+        self.led_arrow1_line = QGraphicsLineItem(
+            arrow1_start_x, arrow1_start_y,
+            arrow1_end_x, arrow1_end_y,
+            self
+        )
+        self.led_arrow1_line.setPen(arrow_pen)
+
+        # Arrow 1 head - complete arrowhead
+        arrow1_head = QPolygonF([
+            QPointF(arrow1_end_x, arrow1_end_y),  # Tip
+            QPointF(arrow1_end_x - 6, arrow1_end_y + 2),  # Left barb
+            QPointF(arrow1_end_x - 2, arrow1_end_y + 6)   # Right barb
+        ])
+        self.led_arrow1_head = QGraphicsPolygonItem(arrow1_head, self)
+        self.led_arrow1_head. setPen(arrow_pen)
+        self.led_arrow1_head. setBrush(QBrush(QColor("black")))
+
+        # Arrow 2 - parallel to arrow 1, offset to the right
+        arrow2_start_x = arrow1_start_x + 8
+        arrow2_start_y = arrow1_start_y + 2
+        arrow2_end_x = arrow2_start_x + 15
+        arrow2_end_y = arrow2_start_y - 12
+
+        self.led_arrow2_line = QGraphicsLineItem(
+            arrow2_start_x, arrow2_start_y,
+            arrow2_end_x, arrow2_end_y,
+            self
+        )
+        self.led_arrow2_line.setPen(arrow_pen)
+
+        # Arrow 2 head - complete arrowhead
+        arrow2_head = QPolygonF([
+            QPointF(arrow2_end_x, arrow2_end_y),  # Tip
+            QPointF(arrow2_end_x - 6, arrow2_end_y + 2),  # Left barb
+            QPointF(arrow2_end_x - 2, arrow2_end_y + 6)   # Right barb
+        ])
+        self.led_arrow2_head = QGraphicsPolygonItem(arrow2_head, self)
+        self.led_arrow2_head.setPen(arrow_pen)
+        self.led_arrow2_head. setBrush(QBrush(QColor("black")))
+
+    def _create_ground_symbol(self, width: int, height: int) -> None:
+        """Creates the ground symbol with horizontal lines."""
+        pen = QPen(QColor("black"), 2)
+        center_x = width / 2
+
+        # Vertical line from pin to first bar
+        self.gnd_vertical = QGraphicsLineItem(center_x, 0, center_x, 8, self)
+        self.gnd_vertical.setPen(pen)
+
+        # Three horizontal lines of decreasing width
+        bar_widths = [30, 20, 10]
+        bar_y_positions = [8, 16, 24]
+
+        self.gnd_bars = []
+        for i, (bar_width, bar_y) in enumerate(zip(bar_widths, bar_y_positions)):
+            bar = QGraphicsLineItem(
+                center_x - bar_width / 2, bar_y,
+                center_x + bar_width / 2, bar_y,
+                self
+            )
+            bar.setPen(QPen(QColor("black"), 3 - i))
+            self.gnd_bars.append(bar)
+
+    def _create_voltage_source_symbol(self, width: int, height: int) -> None:
+        """Creates the voltage source symbol as a circle with +/- and indicator separated."""
+        pen = QPen(QColor("black"), 2)
+
+        circle_diameter = 40
+        circle_x = (width - circle_diameter) / 2
+        circle_y = (height - circle_diameter) / 2
+
+        # Vertical line from top pin to circle
+        self.vs_lead_top = QGraphicsLineItem(
+            width / 2, 0,
+            width / 2, circle_y,
+            self
+        )
+        self.vs_lead_top.setPen(pen)
+
+        # Circle
+        self.voltage_circle = QGraphicsEllipseItem(circle_x, circle_y, circle_diameter, circle_diameter, self)
+        self.voltage_circle. setPen(pen)
+        self.voltage_circle.setBrush(QBrush(Qt.white))
+
+        # Vertical line from circle to bottom pin
+        self. vs_lead_bottom = QGraphicsLineItem(
+            width / 2, circle_y + circle_diameter,
+            width / 2, height,
+            self
+        )
+        self.vs_lead_bottom.setPen(pen)
+
+        # + symbol at top of circle (outside, near the lead)
+        plus_font = QFont()
+        plus_font.setPointSize(10)
+        plus_font.setBold(True)
+        self.plus_label = QGraphicsTextItem("+", self)
+        self.plus_label.setFont(plus_font)
+        self.plus_label.setDefaultTextColor(QColor("black"))
+        plus_rect = self.plus_label. boundingRect()
+        self.plus_label. setPos(width / 2 + 8, circle_y - 15)
+
+        # - symbol at bottom of circle (outside, near the lead)
+        self.minus_label = QGraphicsTextItem("−", self)
+        self.minus_label.setFont(plus_font)
+        self.minus_label.setDefaultTextColor(QColor("black"))
+        minus_rect = self. minus_label.boundingRect()
+        self.minus_label.setPos(width / 2 + 8, circle_y + circle_diameter - minus_rect.height() + 15)
+
+        # AC or DC indicator in the CENTER of the circle
+        if self.model.type == "ac_voltage_source":
+            self._draw_ac_symbol(width, height, circle_y, circle_diameter)
+        else:
+            self._draw_dc_symbol(width, height, circle_y, circle_diameter)
+
+    def _create_current_source_symbol(self, width: int, height: int) -> None:
+        """Creates the current source symbol as a circle with an arrow."""
+        pen = QPen(QColor("black"), 2)
+
+        circle_diameter = 40
+        circle_x = (width - circle_diameter) / 2
+        circle_y = (height - circle_diameter) / 2
+
+        # Vertical line from top pin to circle
+        self.cs_lead_top = QGraphicsLineItem(
+            width / 2, 0,
+            width / 2, circle_y,
+            self
+        )
+        self.cs_lead_top.setPen(pen)
+
+        # Circle
+        self.current_circle = QGraphicsEllipseItem(circle_x, circle_y, circle_diameter, circle_diameter, self)
+        self.current_circle. setPen(pen)
+        self.current_circle.setBrush(QBrush(Qt.white))
+
+        # Vertical line from circle to bottom pin
+        self.cs_lead_bottom = QGraphicsLineItem(
+            width / 2, circle_y + circle_diameter,
+            width / 2, height,
+            self
+        )
+        self.cs_lead_bottom.setPen(pen)
+
+        # Arrow inside circle pointing up
+        self._draw_current_arrow(width, height, circle_y, circle_diameter)
+
+    def _draw_current_arrow(self, width: int, height: int, circle_y: float, circle_diameter:  float) -> None:
+        """Draws an upward-pointing arrow inside the current source circle."""
+        center_x = width / 2
+        center_y_circle = circle_y + circle_diameter / 2
+        pen = QPen(QColor("black"), 2)
+
+        arrow_length = 24
+        arrow_head_size = 10
+
+        arrow_start_y = center_y_circle + arrow_length / 2
+        arrow_end_y = center_y_circle - arrow_length / 2
+
+        # Arrow shaft
+        self.arrow_shaft = QGraphicsLineItem(
+            center_x, arrow_start_y,
+            center_x, arrow_end_y,
+            self
+        )
+        self.arrow_shaft.setPen(pen)
+
+        # Arrow head
+        arrow_head = QPolygonF([
+            QPointF(center_x, arrow_end_y),
+            QPointF(center_x - arrow_head_size / 2, arrow_end_y + arrow_head_size),
+            QPointF(center_x + arrow_head_size / 2, arrow_end_y + arrow_head_size)
+        ])
+        self.arrow_head_item = QGraphicsPolygonItem(arrow_head, self)
+        self.arrow_head_item. setBrush(QBrush(QColor("black")))
+        self.arrow_head_item.setPen(QPen(Qt.NoPen))
+
+    def _draw_ac_symbol(self, width: int, height: int, circle_y: float, circle_diameter:  float) -> None:
+        """Draws a sine wave symbol in the CENTER of the voltage source circle."""
+        center_x = width / 2
+        center_y = circle_y + circle_diameter / 2  # True center of circle
+
+        # Draw sine wave using path - centered in circle
+        path = QPainterPath()
+        wave_width = 20
+        wave_height = 8
+
+        path.moveTo(center_x - wave_width / 2, center_y)
+        path.cubicTo(
+            center_x - wave_width / 4, center_y - wave_height * 1.5,
+            center_x - wave_width / 8, center_y - wave_height * 1.5,
+            center_x, center_y
+        )
+        path.cubicTo(
+            center_x + wave_width / 8, center_y + wave_height * 1.5,
+            center_x + wave_width / 4, center_y + wave_height * 1.5,
+            center_x + wave_width / 2, center_y
+        )
+
+        self.ac_wave = QGraphicsPathItem(path, self)
+        self.ac_wave.setPen(QPen(QColor("black"), 2))
+        self.ac_wave. setBrush(QBrush(Qt.NoBrush))
+
+    def _draw_dc_symbol(self, width: int, height: int, circle_y: float, circle_diameter: float) -> None:
+        """Draws DC indicator lines in the CENTER of the voltage source circle."""
+        center_x = width / 2
+        center_y = circle_y + circle_diameter / 2  # True center of circle
+        line_width = 16
+
+        # Long line (positive bar)
+        self.dc_line1 = QGraphicsLineItem(
+            center_x - line_width / 2, center_y - 5,
+            center_x + line_width / 2, center_y - 5,
+            self
+        )
+        self.dc_line1.setPen(QPen(QColor("black"), 2))
+
+        # Short line (negative bar) - dashed or shorter
+        self.dc_line2 = QGraphicsLineItem(
+            center_x - line_width / 3, center_y + 5,
+            center_x + line_width / 3, center_y + 5,
+            self
+        )
+        self.dc_line2.setPen(QPen(QColor("black"), 2))
+
+    def _create_generic_symbol(self, width:  int, height: int) -> None:
+        """Creates a generic rectangular component symbol."""
+        pen = QPen(QColor("black"), 2)
+
+        # Simple rectangle
+        rect_margin = 15
+        self.generic_rect = QGraphicsRectItem(
+            rect_margin, 5,
+            width - 2 * rect_margin, height - 10,
+            self
+        )
+        self.generic_rect. setPen(pen)
+        self.generic_rect.setBrush(QBrush(QColor("#eeeeee")))
+
+        # Lead lines
+        center_y = height / 2
+        self.generic_lead_left = QGraphicsLineItem(0, center_y, rect_margin, center_y, self)
+        self.generic_lead_left. setPen(pen)
+
+        self.generic_lead_right = QGraphicsLineItem(width - rect_margin, center_y, width, center_y, self)
+        self.generic_lead_right.setPen(pen)
 
     def refresh_label(self) -> None:
         """Updates the text label based on current model parameters."""
-        main_key = next(
-            (k for k in self. UNIT_MAP.keys() if k in self.model.parameters),
-            None
-        )
-
-        if main_key:
-            val = self.model. parameters[main_key]
-            unit = self.UNIT_MAP. get(main_key, "")
-            text = f"{self.ref} {val}{unit}"
-        else:
+        if self.model.type == "ground":
             text = self.ref
+        elif self. model.type == "dc_voltage_source":
+            voltage = self.model. parameters.get("voltage", 5.0)
+            text = f"{self.ref}\n{voltage}V DC"
+        elif self.model.type == "ac_voltage_source":
+            voltage = self.model. parameters.get("voltage", 5.0)
+            freq = self.model. parameters.get("frequency", 1000)
+            text = f"{self.ref}\n{voltage}V {freq}Hz"
+        elif self.model.type == "dc_current_source":
+            current = self.model.parameters.get("current", 0.001)
+            if current < 1:
+                text = f"{self. ref}\n{current * 1000}mA"
+            else:
+                text = f"{self.ref}\n{current}A"
+        else:
+            main_key = next(
+                (k for k in self. UNIT_MAP.keys() if k in self.model.parameters),
+                None
+            )
+            if main_key:
+                val = self.model. parameters[main_key]
+                unit = self.UNIT_MAP. get(main_key, "")
+                text = f"{self.ref} {val}{unit}"
+            else:
+                text = self.ref
 
         self.label.setPlainText(text)
         self.update_label_position()
 
     def update_label_position(self) -> None:
-        """Centers the label above the component."""
+        """Centers the label above or beside the component."""
         rect = self.rect()
-        label_rect = self. label.boundingRect()
-        self.label.setPos(
-            (rect.width() - label_rect.width()) / 2,
-            -label_rect.height() - 5
-        )
+        label_rect = self.label. boundingRect()
+
+        if self.model.type == "ground":
+            self.label.setPos(
+                (rect.width() - label_rect.width()) / 2,
+                rect.height() + 5
+            )
+        elif self.model. type in ("dc_voltage_source", "ac_voltage_source", "dc_current_source"):
+            self.label.setPos(
+                rect.width() + 5,
+                (rect.height() - label_rect.height()) / 2
+            )
+        else:
+            self. label.setPos(
+                (rect. width() - label_rect.width()) / 2,
+                -label_rect.height() - 5
+            )
 
     def _snap_to_grid(self, pos: QPointF) -> QPointF:
         """Calculates the nearest grid intersection for a given position."""
@@ -80,45 +559,33 @@ class ComponentItem(QGraphicsRectItem):
         return QPointF(x, y)
 
     def _is_master_component(self) -> bool:
-        """
-        Check if this component is the 'master' (first ComponentItem in selection).
-        Only the master should handle moving junctions to avoid duplicate movements.
-        """
+        """Check if this component is the 'master' (first ComponentItem in selection)."""
         if not self.scene():
             return False
 
         for item in self.scene().selectedItems():
             if isinstance(item, ComponentItem):
-                # Return True only if this component is the first one found
                 return item is self
         return False
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: Any) -> Any:
         """Forces the item to snap to the grid in real-time during movement."""
-        if change == QGraphicsItem.ItemPositionChange and self. scene():
-            # If being moved as part of a multi-selection by another master, don't snap
+        if change == QGraphicsItem.ItemPositionChange and self.scene():
             if self._is_being_moved_by_master:
                 return value
 
-            old_pos = self.pos()
+            old_pos = self. pos()
             new_pos = self._snap_to_grid(value)
-
-            # Calculate the delta for this component (in 50px grid increments)
             delta = new_pos - old_pos
 
-            # Only the master component should move junctions to avoid duplicate movements
-            if (delta. x() != 0 or delta.y() != 0) and self._is_master_component():
+            if (delta.x() != 0 or delta. y() != 0) and self._is_master_component():
                 self._move_selected_junctions_proportionally(delta)
 
             return new_pos
         return super().itemChange(change, value)
 
     def _move_selected_junctions_proportionally(self, component_delta: QPointF) -> None:
-        """
-        When a component moves by delta on 50px grid, move selected junctions
-        by the same absolute delta to maintain relative spacing.
-        Component moves 1 increment (50px) -> Junction moves 5 increments (5*10px = 50px)
-        """
+        """Move selected junctions by the same delta to maintain relative spacing."""
         from ui.junction_item import JunctionItem
 
         if not self.scene():
@@ -128,40 +595,36 @@ class ComponentItem(QGraphicsRectItem):
 
         for item in selected_items:
             if isinstance(item, JunctionItem):
-                # Set flag to prevent junction's own snapping logic from interfering
                 item._is_being_moved_by_master = True
-                # Move junction by the same absolute delta (preserving relative spacing)
                 item.setPos(item.pos() + component_delta)
                 item._is_being_moved_by_master = False
 
     def mousePressEvent(self, event) -> None:
-        # FIX: Use pos() instead of scenePos() to be consistent with itemChange snapping
-        self. old_pos = self.pos()
+        self.old_pos = self.pos()
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:
-        # FIX: Use pos() instead of scenePos() to be consistent with itemChange snapping
         new_pos = self. pos()
-        if self.old_pos and self.old_pos != new_pos:
+        if self. old_pos and self.old_pos != new_pos:
             view = self.scene().views()[0]
             if hasattr(view, "undo_stack"):
-                view.undo_stack.push(MoveComponentCommand(self, self.old_pos, new_pos))
+                view. undo_stack. push(MoveComponentCommand(self, self.old_pos, new_pos))
 
         super().mouseReleaseEvent(event)
 
     def update_label_after_dialog(self, comp_model) -> None:
         """Public API to trigger a label refresh after model edits."""
-        self. model = comp_model
+        self.model = comp_model
         self.refresh_label()
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key_R:
-            old_rot = self. rotation()
+            old_rot = self.rotation()
             new_rot = (old_rot + 90) % 360
 
-            view = self. scene().views()[0]
+            view = self.scene().views()[0]
             if hasattr(view, "undo_stack"):
-                view. undo_stack.push(RotateComponentCommand(self, old_rot, new_rot))
+                view.undo_stack.push(RotateComponentCommand(self, old_rot, new_rot))
             else:
                 self. setRotation(new_rot)
         else:
