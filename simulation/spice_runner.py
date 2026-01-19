@@ -191,33 +191,22 @@ class SpiceRunner:
 
     def run_simulation(self, netlist: str, analysis: AnalysisConfig,
                        probe_nodes: Optional[List[str]] = None) -> SimulationResult:
-        print("[DEBUG] Preparing full netlist for simulation")
         # 1. Prepare the full netlist for the CLI
         full_netlist = self._prepare_netlist(netlist, analysis, probe_nodes)
-        print(f"[DEBUG] Full netlist prepared: {full_netlist[:200]}...")  # Print only the first 200 characters
 
         # 2. Try CLI first (it's more reliable on Python 3.14)
         try:
-            print("[DEBUG] Checking if NGSpice CLI is available")
             if self._check_ngspice_cli():
-                print("[DEBUG] NGSpice CLI available. Running with CLI.")
                 result = self._run_with_cli(full_netlist, analysis)
-                print("[DEBUG] Simulation with CLI successful")
                 return result
-            else:
-                print("[DEBUG] NGSpice CLI not available. Skipping to PySpice.")
         except Exception as e:
-            print(f"[DEBUG] CLI simulation failed with exception: {e}. Trying PySpice...")
+            print(f"CLI simulation failed with exception: {e}. Trying PySpice...")
 
         # 3. Fallback to PySpice only if CLI isn't available
-        print(f"[DEBUG] PySpice available: {self._pyspice_available}")
         if self._pyspice_available:
-            print("[DEBUG] Running simulation with PySpice")
             result = self._run_with_pyspice(netlist, analysis)
-            print("[DEBUG] Simulation with PySpice successful")
             return result
 
-        print("[DEBUG] No simulation engine is available. Raising NgspiceNotFoundError.")
         raise NgspiceNotFoundError("No simulation engine (CLI or DLL) is working.")
 
     def _prepare_netlist(
@@ -367,29 +356,23 @@ class SpiceRunner:
         import tempfile
         import os
 
-        print("[DEBUG] Initializing SimulationResult object")
         result = SimulationResult(
             success=False,
             analysis_type=analysis.analysis_type
         )
 
-        print("[DEBUG] Creating temporary file for netlist")
         with tempfile.NamedTemporaryFile(mode='w', suffix='.cir', delete=False) as f:
             f.write(netlist)
             netlist_path = f.name
-        print(f"[DEBUG] Netlist file written to: {netlist_path}")
 
         try:
             # 1. CHANGE THIS: Use the full path to your ngspice.exe
             # Example: r"C:\Spice64\bin\ngspice.exe"
             executable = r"C:\ngspice\Spice64\bin\ngspice_con.exe"
-            print(f"[DEBUG] Using ngspice executable at: {executable}")
             if not os.path.exists(executable):
-                print(f"[DEBUG] Executable not found at {executable}")
                 return SimulationResult(success=False, analysis_type=analysis.analysis_type,
                                         error_message=f"Executable not found at {executable}")
 
-            print(f"[DEBUG] Running ngspice: {executable} -b -n {netlist_path}")
             proc = subprocess.run(
                 [executable, "-b", "-n", netlist_path],
                 capture_output=True,
@@ -399,87 +382,115 @@ class SpiceRunner:
 
             # 2. COMBINE STDOUT AND STDERR
             # Ngspice often sends the table data to one and warnings to the other
-            print("[DEBUG] Combining stdout and stderr from ngspice")
             full_output = proc.stdout + "\n" + proc.stderr
             result.raw_output = full_output
-            print(f"[DEBUG] ngspice exited with code: {proc.returncode}")
-            print(f"[DEBUG] First 300 chars of combined output:\n{full_output[:300]}")
 
             # 3. PARSE THE COMBINED OUTPUT
             # We parse even if returncode != 0 because Ngspice often returns 1 for minor warnings
-            print("[DEBUG] Parsing CLI output")
             self._parse_cli_output(result, full_output, analysis)
 
             if result.node_voltages or result.operating_point:
-                print("[DEBUG] Successfully parsed node voltages or operating point")
                 result.success = True
             else:
-                print(
-                    f"[DEBUG] No node voltages/operating point found, simulation failed. Exit code: {proc.returncode}")
                 result.success = False
                 result.error_message = f"No data parsed. Exit code: {proc.returncode}"
 
         except subprocess.TimeoutExpired:
-            print("[DEBUG] Simulation timed out after 30 seconds")
             result.success = False
             result.error_message = "Simulation timed out after 30 seconds"
         except Exception as e:
-            print(f"[DEBUG] Exception during simulation: {e}")
             result.success = False
             result.error_message = str(e)
         finally:
             if os.path.exists(netlist_path):
-                print(f"[DEBUG] Removing temporary netlist file: {netlist_path}")
                 os.unlink(netlist_path)
 
         return result
 
     def _parse_cli_output(self, result, output, analysis):
-        if analysis.analysis_type == AnalysisType.OPERATING_POINT:
-            self._parse_op_cli_output(result, output)
-        elif analysis.analysis_type == AnalysisType.DC_SWEEP:
-            self._parse_dc_cli_output(result, output)
-        elif analysis.analysis_type == AnalysisType.TRANSIENT:
-            # Use the same folder as the netlist file
-            raw_path = os.path.join(os.getcwd(), "sim.raw")
-            if os.path.exists(raw_path):
+        raw_path = os.path.join(os.getcwd(), "sim.raw")
+        if not os.path.exists(raw_path):
+            result.success = False
+            result.error_message = f"RAW file not found: {raw_path}"
+        else:
+            if analysis.analysis_type == AnalysisType.OPERATING_POINT:
+                self._parse_op_raw_file(result, raw_path)
+            elif analysis.analysis_type == AnalysisType.DC_SWEEP:
+                self._parse_dc_cli_output(result, output)
+            elif analysis.analysis_type == AnalysisType.TRANSIENT:
                 self._parse_tran_raw_file(result, raw_path)
-            else:
-                result.success = False
-                result.error_message = f"RAW file not found: {raw_path}"
-        elif analysis.analysis_type == AnalysisType.AC_ANALYSIS:
-            # Use the same folder as the netlist file
-            raw_path = os.path.join(os.getcwd(), "sim.raw")
-            if os.path.exists(raw_path):
+            elif analysis.analysis_type == AnalysisType.AC_ANALYSIS:
                 self._parse_ac_raw_file(result, raw_path)
+
+    def _parse_op_raw_file(self, result, filename):
+        with open(filename, "r") as f:
+            lines = f.readlines()
+
+        # Headers/variable discovery
+        variable_names = []
+        in_variables = False
+        num_variables = 0
+        data_start = None
+
+        for line_no, line in enumerate(lines):
+            s = line.strip()
+            if s.startswith("No. Variables:"):
+                num_variables = int(s.split()[-1])
+            if s.startswith('Variables:'):
+                in_variables = True
+                continue
+            if in_variables:
+                if s.lower().startswith('values:'):
+                    in_variables = False
+                    data_start = line_no + 1
+                    break
+                if not s or ':' in s:
+                    in_variables = False
+                    continue
+                parts = s.split()
+                if len(parts) >= 2:
+                    variable_names.append(parts[1])
+                continue
+            if s.lower().startswith('values:'):
+                data_start = line_no + 1
+                break
+
+        if not num_variables or not variable_names:
+            print('Did not detect required headers.')
+            return
+
+        if data_start is None:
+            print('No Values section found! Cannot parse data.')
+            return
+
+        result.node_voltages = {}
+
+        # Parse data: OP analysis has only one set of values
+        value_lines = [line.strip() for line in lines[data_start:] if line.strip()]
+
+        # LTspice might write single value per line, with or without indices
+        values = []
+        for val_line in value_lines:
+            parts = val_line.split()
+            if len(parts) == 2 and parts[0].isdigit():
+                # Format: "0 <value>"
+                values.append(float(parts[1]))
+            elif len(parts) == 1:
+                # Format: "<value>"
+                try:
+                    values.append(float(parts[0]))
+                except ValueError:
+                    values.append(None)
             else:
-                result.success = False
-                result.error_message = f"RAW file not found: {raw_path}"
-
-    def _parse_op_cli_output(self, result, output):
-        for line in output.splitlines():
-            line = line.strip()
-            if "=" not in line:
+                # Unrecognized line
                 continue
 
-            try:
-                lhs, rhs = line.split("=", 1)
-                value = float(rhs.strip())
-
-                lhs = lhs.strip().lower()
-
-                # Node voltage
-                if lhs.startswith("v(") and lhs.endswith(")"):
-                    node = lhs[2:-1]
-                    result.operating_point[node] = value
-
-                # Branch current
-                elif lhs.startswith("i(") and lhs.endswith(")"):
-                    branch = lhs[2:-1]
-                    result.branch_currents[branch] = [value]
-
-            except ValueError:
-                continue
+        if len(values) != len(variable_names):
+            print("Warning: Mismatch between variables and parsed values.")
+        for name, value in zip(variable_names, values):
+            result.node_voltages[name] = value
+        # For OP, no time axis
+        result.time = None
 
     def _parse_dc_cli_output(self, result, output):
         lines = output.splitlines()
@@ -519,36 +530,38 @@ class SpiceRunner:
                     result.node_voltages[name].append(val)
 
     def _parse_tran_raw_file(self, result, filename):
-        print(f"Opening ASCII raw file: {filename}")
         with open(filename, "r") as f:
             lines = f.readlines()
 
+        # variable_names = ["time", "v(n3)", "v(n4)", "i(v1)"]
         variable_names = []
         in_variables = False
         num_variables = 0
         data_start = None
 
-        # Header parsing
-        for line_no, line in enumerate(lines, 1):
+        for line_no, line in enumerate(lines):
             s = line.strip()
             if s.startswith("No. Variables:"):
                 num_variables = int(s.split()[-1])
-                print(f"Found number of variables: {num_variables}")
             if s.startswith('Variables:'):
                 in_variables = True
                 continue
             if in_variables:
+                # Detect 'Values:' before skipping lines containing ':'
+                if s.lower().startswith('values:'):
+                    in_variables = False  # End variable-section
+                    data_start = line_no + 1  # Start parsing after 'Values:'
+                    break
                 if not s or ':' in s:
                     in_variables = False
                     continue
                 parts = s.split()
                 if len(parts) >= 2:
                     variable_names.append(parts[1])
-                    print(f"Variable: {parts[1]}")
                 continue
-            if s.startswith('Values:'):
-                data_start = line_no
-                print("Values section detected.")
+
+            if s.lower().startswith('values:'):
+                data_start = line_no + 1  # Start parsing after 'Values:'
                 break
 
         if not num_variables or not variable_names:
@@ -556,27 +569,42 @@ class SpiceRunner:
             return
 
         if data_start is None:
-            print('No Values section found! Cannot parse data. Please check your .raw file contents.')
+            print('No Values section found! Cannot parse data.')
             return
 
-        # Prepare result
         result.time = []
         result.node_voltages = {name: [] for name in variable_names if name != "time"}
 
-        # Parsing values
         i = data_start
-        value_line = 0
         while i < len(lines):
-            # ... rest of your code ...
-            # (parsing logic goes here, as before)
-            break  # include your full value parsing loop as from previous message
-
-        print(f"Parsed {value_line} timesteps from {filename}.")
+            # Skip empty lines
+            if not lines[i].strip():
+                i += 1
+                continue
+            # First line: timestep idx and time value
+            tokens = lines[i].split()
+            if len(tokens) == 2 and tokens[0].isdigit():
+                # Grab time value
+                result.time.append(float(tokens[1]))
+                values = []
+                # For all remaining variables
+                for var_idx in range(1, num_variables):
+                    i += 1
+                    # Check for out-of-bounds
+                    if i < len(lines) and lines[i].strip():
+                        values.append(float(lines[i]))
+                    else:
+                        values.append(None)
+                # Assign values to respective variables
+                for name, value in zip(variable_names[1:], values):
+                    result.node_voltages[name].append(value)
+                i += 1  # move to next (blank or next timestep)
+            else:
+                i += 1  # skip malformed line
 
     def _parse_ac_raw_file(self, result, raw_path):
         import math
 
-        print(f"[DEBUG] Opening raw file at {raw_path}")
         with open(raw_path, "r") as f:
             lines = f.readlines()
 
@@ -586,18 +614,14 @@ class SpiceRunner:
         for i, line in enumerate(lines):
             if line.startswith("No. Variables:"):
                 n_vars = int(line.partition(":")[2])
-                print(f"[DEBUG] Found {n_vars} variables (line {i})")
             if line.startswith("Variables:"):
                 var_start = i + 1
                 variables = [lines[j].split()[1].strip('"') for j in range(var_start, var_start + n_vars)]
-                print(f"[DEBUG] Parsed variable names: {variables}")
             if line.startswith("Values:"):
                 data_start = i + 1
-                print(f"[DEBUG] Data starts at line {data_start}")
                 break
 
         num_points = int([l for l in lines if l.startswith("No. Points:")][0].partition(":")[2])
-        print(f"[DEBUG] Expecting {num_points} data points")
 
         i = data_start
         idx = 0
@@ -624,12 +648,11 @@ class SpiceRunner:
                 freq_str = first_line[1]
                 freq_real = float(freq_str.split(',')[0])
             except Exception as e:
-                print(f"[DEBUG] Failed to parse index/freq at idx={idx}: '{block[0]}' error: {e}")
+                print(f"Failed to parse index/freq at idx={idx}: '{block[0]}' error: {e}")
                 continue
 
             if len(result.frequency) <= point_idx:
                 result.frequency.append(freq_real)
-            print(f"[DEBUG] Data block {idx} (index={point_idx}, freq={freq_real})")
 
             for j in range(1, n_vars):
                 varname = variables[j]
@@ -639,9 +662,8 @@ class SpiceRunner:
                     r = float(r_str)
                     im = float(im_str)
                     mag = math.hypot(r, im)
-                    print(f"[DEBUG] {varname} at idx={point_idx}: r={r}, im={im}, mag={mag}")
                 except Exception as e:
-                    print(f"[DEBUG] Could not parse value for '{varname}' at idx={point_idx}: '{raw_val}', error: {e}")
+                    print(f"Could not parse value for '{varname}' at idx={point_idx}: '{raw_val}', error: {e}")
                     continue
 
                 if varname not in result.node_voltages:

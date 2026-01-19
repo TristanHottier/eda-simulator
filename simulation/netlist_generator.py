@@ -55,7 +55,7 @@ class NetlistComponent:
         elif self.comp_type == "capacitor":
             # C<name> <node1> <node2> <value>
             value = self._format_capacitance(self.parameters.get("capacitance", 1))
-            return f"C{self.ref} {self.nodes[0]} {self.nodes[1]} {value}"
+            return f"C{self.ref} {self.nodes[0]} {self.nodes[1]} {value}\n.IC V({self.nodes[0]})=0"
 
         elif self.comp_type == "inductor":
             # L<name> <node1> <node2> <value>

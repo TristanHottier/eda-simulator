@@ -417,7 +417,10 @@ class OperatingPointPanel(QWidget):
             row += 1
 
             for node, voltage in sorted(op_data.node_voltages.items()):
-                name_label = QLabel(f"V({node}):")
+                simple_name = node
+                if simple_name.lower().startswith('v(') and simple_name.endswith(')'):
+                    simple_name = simple_name[2:-1]  # Extract N3 from v(n3)
+                name_label = QLabel(f"V({simple_name.upper()}):")
                 name_label.setStyleSheet(f"color:  {text_color};")
                 value_label = QLabel(f"{voltage:.6g} V")
                 value_label.setStyleSheet(f"color: #4ECDC4; font-family: monospace;")
@@ -438,7 +441,10 @@ class OperatingPointPanel(QWidget):
             row += 1
 
             for comp, current in sorted(op_data.branch_currents.items()):
-                name_label = QLabel(f"I({comp}):")
+                simple_name = comp
+                if simple_name.lower().startswith('i(') and simple_name.endswith(')'):
+                    simple_name = simple_name[2:-1]  # Extract V1 from i(v1)
+                name_label = QLabel(f"I({simple_name.upper()}):")
                 name_label.setStyleSheet(f"color: {text_color};")
                 value_label = QLabel(f"{current:.6g} A")
                 value_label.setStyleSheet(f"color:  #FF6B6B; font-family: monospace;")
@@ -599,14 +605,8 @@ class WaveformViewer(QWidget):
         Args:
             data: SimulationData containing analysis results.
         """
-        print(f"--- VIEWER DEBUG ---")
-        if data:
-            print(f"Viewer received {len(data.get_available_analyses())} analyses.")
-            # Check AC specifically
-            if data.ac_analysis:
-                print(f"AC Waveforms: {list(data.ac_analysis.waveforms.keys())}")
-        else:
-            print("Viewer received NULL data!")
+        if not data:
+            print("Viewer received NULL data !")
 
         self._simulation_data = data
         self._update_analysis_selector()
@@ -713,13 +713,6 @@ class WaveformViewer(QWidget):
         """Displays all waveforms from a group."""
         for i, (name, waveform) in enumerate(group.waveforms.items()):
             color = waveform.color or get_waveform_color(i)
-            # --- DEBUG BLOCK: print data lengths and min/max
-            print(f"[DEBUG] {name}: len(x_data)={len(waveform.x_data)}, len(y_data)={len(waveform.y_data)}")
-            if hasattr(waveform, 'x_data') and hasattr(waveform, 'y_data') and len(waveform.x_data) and len(
-                    waveform.y_data):
-                print(
-                    f"[DEBUG] {name}: x min={min(waveform.x_data):.2g}, max={max(waveform.x_data):.2g}, y min={min(waveform.y_data):.2g}, max={max(waveform.y_data):.2g}")
-            # ---
             self._plot.add_waveform(waveform, color)
             self._add_legend_item(name, color)
 

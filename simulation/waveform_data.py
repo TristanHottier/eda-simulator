@@ -527,9 +527,18 @@ class SimulationData:
         sim_data = cls(title=title)
 
         if result.analysis_type == AnalysisType.OPERATING_POINT:
+
+            node_voltages = {}
+            branch_currents = {}
+            for k, v in result.node_voltages.items():
+                if k.lower().startswith("v("):
+                    node_voltages[k] = v
+                elif k.lower().startswith("i("):
+                    branch_currents[k] = v
+
             sim_data.operating_point = OperatingPointData(
-                node_voltages=dict(result.operating_point),
-                branch_currents=dict(result.branch_currents)
+                node_voltages=node_voltages,
+                branch_currents=branch_currents
             )
 
         elif result.analysis_type == AnalysisType.TRANSIENT:

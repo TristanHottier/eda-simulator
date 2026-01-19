@@ -378,8 +378,6 @@ class SimulationPanel(QWidget):
 
         # Convert to SimulationData and emit
         sim_data = SimulationData.from_simulation_result(result, "Simulation Results")
-        print(f"--- SIGNAL DEBUG ---")
-        print(f"Emitting data for analysis: {sim_data}")
         self.simulation_completed.emit(sim_data)
 
         self._status_label.setText("Simulation complete")
