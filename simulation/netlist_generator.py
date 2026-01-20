@@ -83,6 +83,21 @@ class NetlistComponent:
             # D<name> <anode> <cathode> <model>
             return f"D{self.ref} {self.nodes[0]} {self.nodes[1]} LED_MODEL"
 
+        elif self.comp_type == "diode":
+            # Check if a unique model name was assigned during _format_netlist
+            if hasattr(self, "spice_model_name"):
+                model_name = self.spice_model_name
+            else:
+                # Fallback (should ideally not be reached if _format_netlist runs first)
+                diode_type = self.parameters.get("diode_type", "silicon")
+                if diode_type == "zener":
+                    model_name = "DZEN"
+                elif diode_type == "schottky":
+                    model_name = "DSCH"
+                else:
+                    model_name = "DSTD"
+            return f"D{self.ref} {self.nodes[0]} {self.nodes[1]} {model_name}"
+
         elif self.comp_type == "ground":
             # Ground is handled separately (node 0)
             return ""
@@ -372,9 +387,66 @@ class NetlistGenerator:
         lines.append(f"* Components: {len(self.components)}")
         lines.append("")
 
+        # --- Deduplicate Diode Models Pass ---
+        diode_models = {}
+        model_id_counter = {"silicon": 1, "schottky": 1, "zener": 1}
+        led_models_used = set()
+
+        for component in self.components:
+            if component.comp_type == "diode":
+                dtype = component.parameters.get("diode_type", "silicon")
+                # Gather model params for uniqueness
+                if dtype == "zener":
+                    param_keys = ("IS", "N", "BV", "IBV")
+                    params = (
+                        dtype,
+                        component.parameters.get("IS", 5e-14),
+                        component.parameters.get("N", 1.0),
+                        component.parameters.get("BV", 5.6),
+                        component.parameters.get("IBV", 1e-3)
+                    )
+                elif dtype == "schottky":
+                    param_keys = ("IS", "N", "TT")
+                    params = (
+                        dtype,
+                        component.parameters.get("IS", 2e-14),
+                        component.parameters.get("N", 1.05),
+                        component.parameters.get("TT", 1e-9)
+                    )
+                else:  # "silicon"
+                    param_keys = ("IS", "N", "TT")
+                    params = (
+                        dtype,
+                        component.parameters.get("IS", 1e-14),
+                        component.parameters.get("N", 1.0),
+                        component.parameters.get("TT", 0)
+                    )
+                # Deduplicate model by parameters
+                if params not in diode_models:
+                    base = (
+                        "DZEN" if dtype == "zener" else
+                        "DSCH" if dtype == "schottky" else
+                        "DSTD"
+                    )
+                    idx = model_id_counter[dtype]
+                    model_name = f"{base}{idx}"
+                    diode_models[params] = (model_name, dict((k, component.parameters.get(k)) for k in param_keys))
+                    model_id_counter[dtype] += 1
+                model_name, _ = diode_models[params]
+                component.spice_model_name = model_name  # Attach for use in instance line
+
+            elif component.comp_type == "led":
+                led_models_used.add("LED_MODEL")
+                component.spice_model_name = "LED_MODEL"
+
         # Add standard models
         lines.append("* --- Component Models ---")
-        lines.append(".MODEL LED_MODEL D(IS=1E-20 N=1.5 RS=0.1)")
+        if led_models_used:
+            lines.append(".MODEL LED_MODEL D(IS=1E-20 N=1.5 RS=0.1)")
+        # Add all deduped diode models
+        for model_name, param_dict in diode_models.values():
+            param_text = " ".join(f"{k}={param_dict[k]}" for k in param_dict if param_dict[k] is not None)
+            lines.append(f".model {model_name} D({param_text})")
         lines.append("")
 
         # Add components

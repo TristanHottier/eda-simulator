@@ -1,7 +1,8 @@
 # app/parameter_inspector.py
 from typing import Dict, Any, Union, Optional, TYPE_CHECKING
-from PySide6.QtWidgets import QWidget, QFormLayout, QLabel, QLineEdit, QVBoxLayout
-from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QWidget, QFormLayout, QLabel, QLineEdit, QVBoxLayout, QComboBox
+from PySide6.QtCore import Qt, QTimer
+from functools import partial
 from ui.undo_commands import ParameterChangeCommand
 
 if TYPE_CHECKING:
@@ -14,6 +15,17 @@ class ParameterInspector(QWidget):
     A side-panel widget that displays and allows editing of 
     the selected component's parameters in real-time.
     """
+    DIODE_TYPE_PARAM_MAP = {
+        "silicon": ["IS", "N", "TT"],
+        "schottky": ["IS", "N", "TT"],
+        "zener": ["IS", "N", "BV", "IBV"],
+    }
+
+    DIODE_TYPE_LABELS = {
+        "silicon": "Silicon",
+        "schottky": "Schottky",
+        "zener": "Zener"
+    }
 
     def __init__(self, schematic_view: 'SchematicView'):
         super().__init__()
@@ -27,30 +39,85 @@ class ParameterInspector(QWidget):
         # Track active line edits to prevent garbage collection issues
         self.param_fields: Dict[str, QLineEdit] = {}
 
+        # Keep reference to avoid GC
+        self.diode_type_combo: Optional[QComboBox] = None
+
     def inspect_component(self, component_item: 'ComponentItem') -> None:
         """Populates the form with parameters from the selected component."""
         self.current_item = component_item
         model = component_item.model
 
-        # Clear existing rows
-        while self.form.rowCount():
-            self.form.removeRow(0)
+        # --- Remove All Form Rows and Widgets Safely ---
+        for i in reversed(range(self.form.rowCount())):
+            label_item = self.form.itemAt(i, QFormLayout.LabelRole)
+            if label_item is not None:
+                widget = label_item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+            field_item = self.form.itemAt(i, QFormLayout.FieldRole)
+            if field_item is not None:
+                widget = field_item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+            self.form.removeRow(i)
+
         self.param_fields.clear()
+        self.diode_type_combo = None
 
         # Header Info
         self.form.addRow(QLabel("<b>Reference:</b>"), QLabel(component_item.ref))
         self.form.addRow(QLabel("<b>Type:</b>"), QLabel(model.type.capitalize()))
 
         # Generate editable fields for all parameters
-        for key, value in model.parameters.items():
-            line_edit = QLineEdit(str(value))
-            # Use a lambda with default arguments to capture 'key' and 'line_edit' correctly
-            line_edit.editingFinished.connect(
-                lambda k=key, le=line_edit: self._on_parameter_edited(k, le)
+        if model.type == "diode":
+            # Diode type dropdown (silicon/schottky/zener)
+            diode_type = model.parameters.get("diode_type", "silicon")
+            self.diode_type_combo = QComboBox()
+            for k in ["silicon", "schottky", "zener"]:
+                self.diode_type_combo.addItem(self.DIODE_TYPE_LABELS[k], k)
+            self.diode_type_combo.setCurrentIndex(
+                ["silicon", "schottky", "zener"].index(diode_type)
             )
+            self.diode_type_combo.currentIndexChanged.connect(self._on_diode_type_changed)
+            self.form.addRow(QLabel("diode_type"), self.diode_type_combo)
 
-            self.form.addRow(QLabel(key), line_edit)
-            self.param_fields[key] = line_edit
+            # Show only relevant parameter fields (not 'type' or 'diode_type')
+            for key in self.DIODE_TYPE_PARAM_MAP[diode_type]:
+                val = model.parameters.get(key, "")
+                line_edit = QLineEdit(str(val))
+                line_edit.editingFinished.connect(partial(self._on_parameter_edited, key, line_edit))
+                self.form.addRow(QLabel(key), line_edit)
+                self.param_fields[key] = line_edit
+        else:
+            # Non-diode regular parameter editing (as before)
+            for key, value in model.parameters.items():
+                line_edit = QLineEdit(str(value))
+                line_edit.editingFinished.connect(partial(self._on_parameter_edited, key, line_edit))
+                self.form.addRow(QLabel(key), line_edit)
+                self.param_fields[key] = line_edit
+
+    def _on_diode_type_changed(self, idx: int) -> None:
+        """Handle the diode type dropdown changing."""
+        if not self.current_item:
+            return
+        model = self.current_item.model
+        new_type = self.diode_type_combo.currentData()
+        old_type = model.parameters.get("diode_type", "silicon")
+
+        if new_type != old_type:
+            undo_stack = self.schematic_view.undo_stack
+            if undo_stack:
+                undo_stack.push(ParameterChangeCommand(
+                    model, "diode_type", old_type, new_type,
+                    component_item=self.current_item
+                ))
+            else:
+                model.parameters["diode_type"] = new_type
+                self.current_item.refresh_label()
+
+            # The parameters visible/necessary change, so refresh UI
+            self.current_item.update_symbol()
+            QTimer.singleShot(0, partial(self.inspect_component, self.current_item))
 
     def _convert_value(self, text: str) -> Union[int, float, str]:
         """Casts string input to appropriate numeric types if possible."""
@@ -84,7 +151,14 @@ class ParameterInspector(QWidget):
     def clear_inspector(self) -> None:
         """Clears the inspector when no component is selected."""
         self.current_item = None
-        while self.form.rowCount():
-            self.form.removeRow(0)
+        for i in reversed(range(self.form.rowCount())):
+            label_item = self.form.itemAt(i, QFormLayout.LabelRole)
+            if label_item is not None and label_item.widget() is not None:
+                label_item.widget().deleteLater()
+            field_item = self.form.itemAt(i, QFormLayout.FieldRole)
+            if field_item is not None and field_item.widget() is not None:
+                field_item.widget().deleteLater()
+            self.form.removeRow(i)
         self.param_fields.clear()
+        self.diode_type_combo = None
         self.form.addRow(QLabel("<i>No component selected</i>"))

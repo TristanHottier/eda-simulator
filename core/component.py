@@ -14,6 +14,16 @@ class Component:
         "capacitor": {"capacitance": 1, "type": "capacitor"},
         "led": {"voltage_drop": 2.0, "type":  "led"},
         "inductor": {"inductance": 100, "type": "inductor"},
+        "diode": {
+            "type": "diode",
+            "diode_type": "silicon",  # can be "silicon", "schottky", "zener"
+            "IS": 1e-14,  # saturation current, default value for standard silicon
+            "N": 1.0,  # ideality factor
+            "TT": 0,  # transit time (switching, 0 for most non-schottky)
+            # Zener-specific parameters (optional, for zener only)
+            # "BV": 5.6,               # breakdown voltage (only for zener)
+            # "IBV": 0.001             # reverse current at breakdown voltage (only for zener)
+        },
         "ground": {"type": "ground"},
         "dc_voltage_source":  {"voltage": 5.0, "type": "dc_voltage_source"},
         "ac_voltage_source": {"voltage":  5.0, "frequency": 1000, "type": "ac_voltage_source"},
@@ -29,6 +39,18 @@ class Component:
         # Merge default parameters
         base_params = self.DEFAULT_PARAMS.get(self.type, self.DEFAULT_PARAMS["generic"])
         self.parameters = {**base_params, **(parameters or {})}
+
+        if self.type == "diode":
+            d_type = self.parameters.get("diode_type", "silicon").lower()
+            if d_type == "schottky":
+                self.parameters.setdefault("TT", 1e-9)  # example: 1 ns transit time
+                self.parameters.setdefault("IS", 2e-14)  # typical Schottky IS
+                self.parameters.setdefault("N", 1.05)  # typical Schottky N
+            elif d_type == "zener":
+                self.parameters.setdefault("IS", 5e-14)
+                self.parameters.setdefault("N", 1.0)
+                self.parameters.setdefault("BV", 5.6)  # default breakdown V for Zener
+                self.parameters.setdefault("IBV", 1e-3)  # 1 mA at breakdown
 
         # FIX: Automatically generate entry and exit pins if none are provided
         if pins:

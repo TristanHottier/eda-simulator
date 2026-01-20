@@ -125,6 +125,18 @@ class ComponentItem(QGraphicsRectItem):
             self.led_arrow2_head.setPen(thin_pen)
             self.led_arrow2_head.setBrush(QBrush(self._stroke_color))
 
+        elif comp_type == "diode":
+            diode_type = self.model.parameters.get("diode_type", "silicon")
+            self.diode_lead_left.setPen(pen)
+            self.diode_triangle.setPen(pen)
+            self.diode_bar.setPen(thick_pen)
+            self.diode_lead_right.setPen(pen)
+            if diode_type == "zener":
+                self.zener_bend1.setPen(pen)
+                self.zener_bend2.setPen(pen)
+            elif diode_type == "schottky":
+                self.schottky_label.setDefaultTextColor(self._stroke_color)
+
         elif comp_type == "ground":
             self.gnd_vertical.setPen(pen)
             for i, bar in enumerate(self.gnd_bars):
@@ -168,7 +180,6 @@ class ComponentItem(QGraphicsRectItem):
             self.generic_lead_right.setPen(pen)
 
     def _create_symbol(self, width:  int, height: int) -> None:
-        """Creates the appropriate schematic symbol based on component type."""
         comp_type = self.model.type
 
         if comp_type == "resistor":
@@ -179,6 +190,10 @@ class ComponentItem(QGraphicsRectItem):
             self._create_inductor_symbol(width, height)
         elif comp_type == "led":
             self._create_led_symbol(width, height)
+        elif comp_type == "diode":
+            # Check which diode type to draw (silicon, schottky, zener) via parameter 'diode_type'
+            diode_type = self.model.parameters.get("diode_type", "silicon")
+            self._create_diode_symbol(width, height, diode_type)
         elif comp_type == "ground":
             self._create_ground_symbol(width, height)
         elif comp_type in ("dc_voltage_source", "ac_voltage_source"):
@@ -383,6 +398,74 @@ class ComponentItem(QGraphicsRectItem):
         self.led_arrow2_head = QGraphicsPolygonItem(arrow2_head, self)
         self.led_arrow2_head.setPen(arrow_pen)
         self.led_arrow2_head.setBrush(QBrush(self._stroke_color))
+
+    def _create_diode_symbol(self, width: int, height: int, diode_type: str) -> None:
+        # 1. CLEANUP: Remove any existing diode parts to avoid ghosting/overlaps
+        for attr in ["diode_lead_left", "diode_triangle", "diode_bar",
+                     "zener_bend1", "zener_bend2", "schottky_label", "diode_lead_right"]:
+            if hasattr(self, attr):
+                item = getattr(self, attr)
+                if item and item.scene():
+                    item.setParentItem(None)
+                    self.scene().removeItem(item)
+                setattr(self, attr, None)
+
+        pen = QPen(self._stroke_color, 2)
+        center_x = width / 2
+        center_y = height / 2
+        triangle_size = 20
+
+        # --- Draw Base (Shared by all) ---
+        # Left lead
+        self.diode_lead_left = QGraphicsLineItem(0, center_y, center_x - triangle_size / 2, center_y, self)
+        self.diode_lead_left.setPen(pen)
+
+        # Triangle (Anode)
+        triangle = QPolygonF([
+            QPointF(center_x - triangle_size / 2, center_y - triangle_size / 2),
+            QPointF(center_x - triangle_size / 2, center_y + triangle_size / 2),
+            QPointF(center_x + triangle_size / 2, center_y)
+        ])
+        self.diode_triangle = QGraphicsPolygonItem(triangle, self)
+        self.diode_triangle.setPen(pen)
+
+        # Main Bar (Cathode)
+        self.diode_bar = QGraphicsLineItem(
+            center_x + triangle_size / 2, center_y - triangle_size / 2,
+            center_x + triangle_size / 2, center_y + triangle_size / 2,
+            self
+        )
+        self.diode_bar.setPen(QPen(self._stroke_color, 3))
+
+        # --- Type Specific Logic ---
+        if diode_type == "zener":
+            line_len = 6
+            y1 = center_y - triangle_size / 2
+            y2 = center_y + triangle_size / 2
+            # Classic Zener "Z" bends
+            self.zener_bend1 = QGraphicsLineItem(center_x + triangle_size / 2, y1,
+                                                 center_x + triangle_size / 2 + line_len, y1 - line_len / 2, self)
+            self.zener_bend2 = QGraphicsLineItem(center_x + triangle_size / 2 - line_len, y2 + line_len / 2,
+                                                 center_x + triangle_size / 2, y2, self)
+            self.zener_bend1.setPen(pen)
+            self.zener_bend2.setPen(pen)
+
+        elif diode_type == "schottky":
+            # Schottky "S" hooks on the bar
+            hook_len = 5
+            y1 = center_y - triangle_size / 2
+            y2 = center_y + triangle_size / 2
+            self.zener_bend1 = QGraphicsLineItem(center_x + triangle_size / 2 - hook_len, y1,
+                                                 center_x + triangle_size / 2, y1, self)
+            self.zener_bend2 = QGraphicsLineItem(center_x + triangle_size / 2, y2,
+                                                 center_x + triangle_size / 2 + hook_len, y2, self)
+            # Note: Standard Schottky symbols have little L-shaped ticks on the bar
+            self.zener_bend1.setPen(pen)
+            self.zener_bend2.setPen(pen)
+
+        # Right lead
+        self.diode_lead_right = QGraphicsLineItem(center_x + triangle_size / 2, center_y, width, center_y, self)
+        self.diode_lead_right.setPen(pen)
 
     def _create_ground_symbol(self, width: int, height: int) -> None:
         """Creates the ground symbol with horizontal lines."""
@@ -589,6 +672,22 @@ class ComponentItem(QGraphicsRectItem):
         self.generic_lead_right = QGraphicsLineItem(width - rect_margin, center_y, width, center_y, self)
         self.generic_lead_right.setPen(pen)
 
+    def update_symbol(self) -> None:
+        """
+        Public method to refresh the visual appearance of the component
+        based on current model parameters.
+        """
+        # Get dimensions from the current bounding box
+        # Usually defined by constants like width=100, height=40
+        rect = self.boundingRect()
+        w, h = int(rect.width()), int(rect.height())
+
+        if self.model.type == "diode":
+            dtype = self.model.parameters.get("diode_type", "silicon")
+            self._create_diode_symbol(w, h, dtype)
+
+        self.update()  # Force Qt to repaint the item
+
     def refresh_label(self) -> None:
         """Updates the text label based on current model parameters."""
         if self.model.type == "ground":
@@ -606,6 +705,13 @@ class ComponentItem(QGraphicsRectItem):
                 text = f"{self.ref}\n{current * 1000}mA"
             else:
                 text = f"{self.ref}\n{current}A"
+        elif self.model.type == "diode":
+            diode_type = self.model.parameters.get("diode_type", "silicon")
+            text = self.ref
+            if diode_type == "zener":
+                text += " Zener"
+            elif diode_type == "schottky":
+                text += " Schottky"
         else:
             main_key = next(
                 (k for k in self.UNIT_MAP.keys() if k in self.model.parameters),

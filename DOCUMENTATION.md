@@ -262,49 +262,41 @@ eda-simulator/
 | Phase | Name | Status | Completion |
 |-------|------|--------|------------|
 | 0 | Foundations & Technical Baseline | ✅ Complete | 100% |
-| 1 | Schematic Editor MVP | 🚧 In Progress | ~85% |
-| 2 | Analog Simulation (SPICE) | ⏳ Not Started | 0% |
+| 1 | Schematic Editor MVP | ✅ Complete | 100% |
+| 2 | Analog Simulation (SPICE) | 🚧 In Progress | 0% |
 | 3 | Digital Logic & Sensors | ⏳ Not Started | 0% |
 | 4 | Microcontroller Simulation | ⏳ Not Started | 0% |
 | 5 | Real Component Libraries | ⏳ Not Started | 0% |
 
-### Detailed Phase 1 Progress
+### Detailed Phase 2 Progress
 
-| Feature | Status | Implementation Details |
-|---------|--------|------------------------|
-| Qt application window | ✅ Done | `AppWindow` with central widget layout |
-| Infinite canvas with zoom/pan | ✅ Done | Mouse wheel zoom, middle-click/Alt+drag pan |
-| Background grid | ✅ Done | `GridItem` renders 10px grid lines |
-| Snap-to-grid placement | ✅ Done | Components snap to 50px, wires to 10px |
-| Component palette | ✅ Done | Resistor, Capacitor, LED, Inductor |
-| Component placement | ✅ Done | Click palette button → component at view center |
-| Component selection | ✅ Done | Click to select, rubber-band multi-select |
-| Component movement | ✅ Done | Drag to move, snaps to grid |
-| Component rotation | ✅ Done | Press `R` key on selected component |
-| Parameter inspector | ✅ Done | Shows selected component properties |
-| Parameter editing | ✅ Done | Inline editing with undo support |
-| Wire tool mode | ✅ Done | Toggle between Select and Wire modes |
-| Orthogonal wire drawing | ✅ Done | Click-to-click wire routing |
-| Wire preview | ✅ Done | Dashed preview line while drawing |
-| Wire snapping to pins | ✅ Done | Proximity snap to component pins |
-| Junction dots | ✅ Done | Auto-created at wire endpoints |
-| Junction dragging | ✅ Done | Move junction, connected wires stretch |
-| Wire splitting | ✅ Done | Click on wire body creates junction |
-| Net tracking | ✅ Done | Wires grouped by net ID |
-| Net merging | ✅ Done | Connecting two nets unifies them |
-| Net highlighting on hover | ✅ Done | Hover wire → all net wires glow |
-| Undo/redo system | ✅ Done | Custom `UndoStack` with command pattern |
-| Undo:  component move | ✅ Done | `MoveComponentCommand` |
-| Undo: component rotate | ✅ Done | `RotateComponentCommand` |
-| Undo: wire creation | ✅ Done | `CreateWireCommand` |
-| Undo:  junction move | ✅ Done | `MoveJunctionCommand` |
-| Undo: parameter change | ✅ Done | `ParameterChangeCommand` |
-| Undo: item deletion | ✅ Done | `DeleteItemsCommand` |
-| JSON save | ✅ Done | `Ctrl+S` → file dialog → JSON export |
-| JSON load | ✅ Done | `Ctrl+O` → file dialog → JSON import |
-| Wire color customization | 🔲 Pending | Not yet implemented |
-| Component flipping | 🔲 Pending | Only rotation implemented |
-| Copy/paste | 🔲 Pending | Not yet implemented |
+| Feature | Status     | Implementation Details |
+|---------|------------|------------------------|
+| Netlist generator | ✅ Complete | `simulation/netlist_generator.py` — Convert circuit model to SPICE netlist |
+| SPICE runner | 🔲 Pending | `simulation/spice_runner.py` — PySpice/ngspice execution manager |
+| Waveform data structures | ✅ Complete | `simulation/waveform_data.py` — Simulation result containers |
+| Waveform viewer | ✅ Complete | `ui/waveform_viewer.py` — PyQtGraph-based plot widget |
+| Simulate button | ✅ Complete | Toolbar button to trigger simulation |
+| Analysis type selector | ✅ Complete | Dropdown for Transient, DC, AC analysis |
+| Probe tool | 🔲 Pending | Select nets to plot in waveform viewer |
+| Ground component | ✅ Complete | Add ground symbol to component palette |
+| Voltage source component | ✅ Complete | DC and AC voltage sources |
+| Current source component | ✅ Complete | DC current source |
+| Operating point analysis | ✅ Complete | `.op` — DC voltages at all nodes |
+| DC sweep analysis | 🔲 Pending | `.dc` — Sweep source, measure response |
+| AC analysis | ✅ Complete | `.ac` — Frequency response |
+| Transient analysis | ✅ Complete | `.tran` — Time-domain simulation |
+| Error detection | ✅ Complete | Missing ground, floating nodes, invalid values |
+| Error reporting UI | ✅ Complete | Clear error messages in status bar or dialog |
+
+### Phase 2 Definition of Done
+
+- [x] Can simulate a simple RC low-pass filter
+- [x] Transient analysis matches hand-calculated time constant
+- [x] Waveform viewer shows voltage vs.  time
+- [x] Changing R or C value and re-simulating shows different curve
+- [x] Error messages displayed for missing ground
+- [x] Simulation results match ngspice command-line output
 
 ---
 
