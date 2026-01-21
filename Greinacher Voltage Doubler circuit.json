@@ -1,0 +1,186 @@
+{
+  "version": "0.1",
+  "components": [
+    {
+      "ref": "GND1",
+      "comp_type": "ground",
+      "x": 50.0,
+      "y": 300.0,
+      "rotation": 0.0,
+      "parameters": {
+        "type": "ground"
+      }
+    },
+    {
+      "ref": "R1",
+      "comp_type": "resistor",
+      "x": 500.0,
+      "y": 150.0,
+      "rotation": 90.0,
+      "parameters": {
+        "resistance": 100000,
+        "type": "resistor"
+      }
+    },
+    {
+      "ref": "C2",
+      "comp_type": "capacitor",
+      "x": 400.0,
+      "y": 150.0,
+      "rotation": 90.0,
+      "parameters": {
+        "capacitance": 470000,
+        "type": "capacitor"
+      }
+    },
+    {
+      "ref": "D2",
+      "comp_type": "diode",
+      "x": 300.0,
+      "y": 100.0,
+      "rotation": 0.0,
+      "parameters": {
+        "type": "diode",
+        "diode_type": "silicon",
+        "IS": 1e-14,
+        "N": 1.0,
+        "TT": 0
+      }
+    },
+    {
+      "ref": "D1",
+      "comp_type": "diode",
+      "x": 200.0,
+      "y": 150.0,
+      "rotation": 270.0,
+      "parameters": {
+        "type": "diode",
+        "diode_type": "silicon",
+        "IS": 1e-14,
+        "N": 1.0,
+        "TT": 0
+      }
+    },
+    {
+      "ref": "C1",
+      "comp_type": "capacitor",
+      "x": 100.0,
+      "y": 100.0,
+      "rotation": 0.0,
+      "parameters": {
+        "capacitance": 470000,
+        "type": "capacitor"
+      }
+    },
+    {
+      "ref": "V1",
+      "comp_type": "ac_voltage_source",
+      "x": 50.0,
+      "y": 150.0,
+      "rotation": 0.0,
+      "parameters": {
+        "voltage": 9,
+        "frequency": 50,
+        "type": "ac_voltage_source"
+      }
+    }
+  ],
+  "wires": [
+    {
+      "x1": 550.0,
+      "y1": 250.0,
+      "x2": 550.0,
+      "y2": 225.0,
+      "net_id": 4,
+      "color": "#00ffff"
+    },
+    {
+      "x1": 450.0,
+      "y1": 250.0,
+      "x2": 550.0,
+      "y2": 250.0,
+      "net_id": 4,
+      "color": "#00ffff"
+    },
+    {
+      "x1": 450.0,
+      "y1": 250.0,
+      "x2": 450.0,
+      "y2": 225.0,
+      "net_id": 4,
+      "color": "#00ffff"
+    },
+    {
+      "x1": 250.0,
+      "y1": 250.0,
+      "x2": 450.0,
+      "y2": 250.0,
+      "net_id": 4,
+      "color": "#00ffff"
+    },
+    {
+      "x1": 250.0,
+      "y1": 250.0,
+      "x2": 250.0,
+      "y2": 225.0,
+      "net_id": 4,
+      "color": "#00ffff"
+    },
+    {
+      "x1": 75.0,
+      "y1": 250.0,
+      "x2": 250.0,
+      "y2": 250.0,
+      "net_id": 4,
+      "color": "#00ffff"
+    },
+    {
+      "x1": 75.0,
+      "y1": 300.0,
+      "x2": 75.0,
+      "y2": 250.0,
+      "net_id": 4,
+      "color": "#00ffff"
+    },
+    {
+      "x1": 450.0,
+      "y1": 125.0,
+      "x2": 550.0,
+      "y2": 125.0,
+      "net_id": 3,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 400.0,
+      "y1": 125.0,
+      "x2": 450.0,
+      "y2": 125.0,
+      "net_id": 3,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 250.0,
+      "y1": 125.0,
+      "x2": 300.0,
+      "y2": 125.0,
+      "net_id": 2,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 200.0,
+      "y1": 125.0,
+      "x2": 250.0,
+      "y2": 125.0,
+      "net_id": 2,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 75.0,
+      "y1": 150.0,
+      "x2": 100.0,
+      "y2": 125.0,
+      "net_id": 1,
+      "color": "#ff0000"
+    }
+  ]
+}

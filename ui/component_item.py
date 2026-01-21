@@ -14,8 +14,8 @@ from ui.pin_item import PinItem
 class ComponentItem(QGraphicsRectItem):
     GRID_SIZE = 50
     UNIT_MAP = {
-        "resistance": "Ω",
-        "capacitance": "nF",
+        "resistance": "kΩ",
+        "capacitance": "uF",
         "voltage_drop": "V",
         "inductance": "mH",
         "voltage":  "V",

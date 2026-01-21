@@ -263,40 +263,71 @@ eda-simulator/
 |-------|------|--------|------------|
 | 0 | Foundations & Technical Baseline | ✅ Complete | 100% |
 | 1 | Schematic Editor MVP | ✅ Complete | 100% |
-| 2 | Analog Simulation (SPICE) | 🚧 In Progress | 0% |
-| 3 | Digital Logic & Sensors | ⏳ Not Started | 0% |
+| 2 | Analog Simulation (SPICE) | ✅ Complete | 100% |
+| 3 | Digital Logic & Sensors | 🚧 In Progress | 0% |
 | 4 | Microcontroller Simulation | ⏳ Not Started | 0% |
 | 5 | Real Component Libraries | ⏳ Not Started | 0% |
 
-### Detailed Phase 2 Progress
+### Phase 3 Objectives (Digital Logic & Sensor Models)
 
-| Feature | Status     | Implementation Details |
-|---------|------------|------------------------|
-| Netlist generator | ✅ Complete | `simulation/netlist_generator.py` — Convert circuit model to SPICE netlist |
-| SPICE runner | 🔲 Pending | `simulation/spice_runner.py` — PySpice/ngspice execution manager |
-| Waveform data structures | ✅ Complete | `simulation/waveform_data.py` — Simulation result containers |
-| Waveform viewer | ✅ Complete | `ui/waveform_viewer.py` — PyQtGraph-based plot widget |
-| Simulate button | ✅ Complete | Toolbar button to trigger simulation |
-| Analysis type selector | ✅ Complete | Dropdown for Transient, DC, AC analysis |
-| Probe tool | 🔲 Pending | Select nets to plot in waveform viewer |
-| Ground component | ✅ Complete | Add ground symbol to component palette |
-| Voltage source component | ✅ Complete | DC and AC voltage sources |
-| Current source component | ✅ Complete | DC current source |
-| Operating point analysis | ✅ Complete | `.op` — DC voltages at all nodes |
-| DC sweep analysis | 🔲 Pending | `.dc` — Sweep source, measure response |
-| AC analysis | ✅ Complete | `.ac` — Frequency response |
-| Transient analysis | ✅ Complete | `.tran` — Time-domain simulation |
-| Error detection | ✅ Complete | Missing ground, floating nodes, invalid values |
-| Error reporting UI | ✅ Complete | Clear error messages in status bar or dialog |
+Phase 3 focuses on introducing **event-driven digital simulation** and **virtual sensor behavior**, while keeping the architecture modular and testable.  
+This phase is intentionally broken into small, incremental steps to avoid coupling digital logic too tightly to analog or MCU systems.
 
-### Phase 2 Definition of Done
+#### Digital Signal Foundations
 
-- [x] Can simulate a simple RC low-pass filter
-- [x] Transient analysis matches hand-calculated time constant
-- [x] Waveform viewer shows voltage vs.  time
-- [x] Changing R or C value and re-simulating shows different curve
-- [x] Error messages displayed for missing ground
-- [x] Simulation results match ngspice command-line output
+| Feature | Status | Implementation Notes                        |
+|--------|--------|---------------------------------------------|
+| Digital state enum | 🔲 Planned | `LOW`, `HIGH`, `Z`, `X` states              |
+| DigitalPin class | 🔲 Planned | Threshold-based analog ↔ digital conversion |
+| Pull-up / pull-down support | 🔲 Planned | Optional internal pin pulls                 |
+| Net-level digital resolution | 🔲 Planned | Resolve multiple drivers on same net        |
+| Unknown state propagation | 🔲 Planned | `X` propagates through logic                |
+| Event data structure | 🔲 Planned | Time + target + new state                   |
+| Priority event queue | 🔲 Planned | Sorted by simulation time                   |
+| Event scheduler | 🔲 Planned | Schedule future state changes               |
+| Dependency tracking | 🔲 Planned | Output changes trigger downstream events    |
+| Simulation time control | 🔲 Planned | Start/stop/reset digital sim                |
+| AND gate | 🔲 Planned | Arbitrary number of inputs                  |
+| OR gate | 🔲 Planned | Short-circuit evaluation                    |
+| NOT gate | 🔲 Planned | Single-input inverter                       |
+| NAND / NOR | 🔲 Planned | Derived from base gates                     |
+| XOR gate | 🔲 Planned | Two-input logic                             |
+| Buffer | 🔲 Planned | Optional propagation delay                  |
+| Clock source | 🔲 Planned | Configurable frequency and duty cycle       |
+| D Flip-Flop | 🔲 Planned | Rising-edge triggered                       |
+| Reset input | 🔲 Planned | Async clear                                 |
+| Enable input | 🔲 Planned | Optional clock gating                       |
+| Timing diagrams | 🔲 Planned | Debug visualization aid                     |
+| Digital component palette | 🔲 Planned | Separate category from analog               |
+| Pin type indicators | 🔲 Planned | Visual distinction for digital pins         |
+| Logic probe tool | 🔲 Planned | Inspect pin state at runtime                |
+| State color coding | 🔲 Planned | HIGH/LOW/Z/X visualization                  |
+| Simulation controls | 🔲 Planned | Start, pause, reset digital sim             |
+| Sensor base class | 🔲 Planned | Common register-based interface             |
+| Update loop integration | 🔲 Planned | Time-based sensor updates                   |
+| Deterministic behavior | 🔲 Planned | Repeatable simulation runs                  |
+| Noise injection | 🔲 Planned | Optional realism toggle                     |
+| Push button | 🔲 Planned | GPIO                                        |
+| Temperature sensor | 🔲 Planned | I2C                                  |
+| Accelerometer | 🔲 Planned | I2C                                  |
+| Potentiometer | 🔲 Planned | Analog/Digital                                  |
+| Simple GPIO expander | 🔲 Planned | I2C                                |
+| Analog → digital thresholding | 🔲 Planned | Comparator-style conversion                 |
+| Digital → analog driving | 🔲 Planned | 0V / VCC sources                            |
+| Conflict detection | 🔲 Planned | Multiple digital drivers                    |
+| Timing alignment | 🔲 Planned | Sync with analog timestep                   |
+
+### Phase 3 Definition of Done
+
+- [ ] Digital pins correctly resolve HIGH / LOW / Z / X states
+- [ ] AND / OR / NOT gates produce correct outputs for all inputs
+- [ ] D flip-flop captures data on rising clock edge
+- [ ] Digital events propagate in correct time order
+- [ ] Analog voltage crossing threshold triggers digital state change
+- [ ] Digital output drives analog net voltage
+- [ ] Virtual sensor returns stable, repeatable values
+- [ ] Mixed analog + digital circuit simulates correctly
+- [ ] No digital logic code leaks into UI or core analog models
 
 ---
 
@@ -687,8 +718,8 @@ Schematics are saved as JSON with version compatibility in mind:
 - [x] Can save schematic to JSON file
 - [x] Can load schematic from JSON file
 - [x] Reloading preserves exact layout and net connectivity
-- [ ] Can delete components and wires
-- [ ] Can customize wire colors
+- [x] Can delete components and wires
+- [x] Can customize wire colors
 
 ---
 
@@ -815,22 +846,22 @@ Transform the static schematic into a functional analog circuit simulator by int
 
 ### Deliverables
 
-- [ ] `simulation/netlist_generator.py` — Converts circuit model to SPICE netlist
-- [ ] `simulation/spice_runner.py` — Manages PySpice/ngspice execution
-- [ ] `simulation/waveform_data.py` — Data structures for simulation results
-- [ ] `ui/waveform_viewer. py` — PyQtGraph-based plot widget
-- [ ] "Simulate" button in toolbar
-- [ ] Analysis type selector (Transient, DC, AC)
+- [x] `simulation/netlist_generator.py` — Converts circuit model to SPICE netlist
+- [x] `simulation/spice_runner.py` — Manages PySpice/ngspice execution
+- [x] `simulation/waveform_data.py` — Data structures for simulation results
+- [x] `ui/waveform_viewer. py` — PyQtGraph-based plot widget
+- [x] "Simulate" button in toolbar
+- [x] Analysis type selector (Transient, DC, AC)
 - [ ] Probe tool for selecting nets to plot
 
 ### Definition of Done
 
-- [ ] Can simulate a simple RC low-pass filter
-- [ ] Transient analysis matches hand-calculated time constant
-- [ ] Waveform viewer shows voltage vs.  time
-- [ ] Changing R or C value and re-simulating shows different curve
-- [ ] Error messages displayed for missing ground
-- [ ] Simulation results match ngspice command-line output
+- [x] Can simulate a simple RC low-pass filter
+- [x] Transient analysis matches hand-calculated time constant
+- [x] Waveform viewer shows voltage vs.  time
+- [x] Changing R or C value and re-simulating shows different curve
+- [x] Error messages displayed for missing ground
+- [x] Simulation results match ngspice command-line output
 
 ---
 

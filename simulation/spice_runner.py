@@ -386,7 +386,7 @@ class SpiceRunner:
 
             # 3. PARSE THE COMBINED OUTPUT
             # We parse even if returncode != 0 because Ngspice often returns 1 for minor warnings
-            self._parse_cli_output(result, full_output, analysis)
+            self._parse_output(result, analysis)
 
             if result.node_voltages or result.operating_point:
                 result.success = True
@@ -406,7 +406,7 @@ class SpiceRunner:
 
         return result
 
-    def _parse_cli_output(self, result, output, analysis):
+    def _parse_output(self, result, analysis):
         raw_path = os.path.join(os.getcwd(), "sim.raw")
         if not os.path.exists(raw_path):
             result.success = False
@@ -415,7 +415,7 @@ class SpiceRunner:
             if analysis.analysis_type == AnalysisType.OPERATING_POINT:
                 self._parse_op_raw_file(result, raw_path)
             elif analysis.analysis_type == AnalysisType.DC_SWEEP:
-                self._parse_dc_cli_output(result, output)
+                self._parse_dc_raw_file(result, raw_path)
             elif analysis.analysis_type == AnalysisType.TRANSIENT:
                 self._parse_tran_raw_file(result, raw_path)
             elif analysis.analysis_type == AnalysisType.AC_ANALYSIS:
@@ -491,42 +491,77 @@ class SpiceRunner:
         # For OP, no time axis
         result.time = None
 
-    def _parse_dc_cli_output(self, result, output):
-        lines = output.splitlines()
-        headers = []
-        in_table = False
+    def _parse_dc_raw_file(self, result, filename):
+        with open(filename, "r") as f:
+            lines = f.readlines()
 
-        for line in lines:
-            line = line.strip()
-            if not line:
+        variable_names = []
+        in_variables = False
+        num_variables = 0
+        data_start = None
+
+        # --- Header Parsing ---
+        for line_no, line in enumerate(lines):
+            s = line.strip()
+
+            if s.startswith("No. Variables:"):
+                num_variables = int(s.split()[-1])
+
+            if s.startswith('Variables:'):
+                in_variables = True
                 continue
 
-            if line.lower().startswith("index"):
-                headers = line.lower().split()
-                in_table = True
+            if in_variables:
+                if s.lower().startswith('values:'):
+                    in_variables = False
+                    data_start = line_no + 1
+                    break
+
+                # Using .split() without arguments handles any whitespace (tabs or spaces)
+                parts = s.split()
+                if len(parts) >= 2:
+                    # parts[0] is index, parts[1] is name (e.g., 'v(v-sweep)')
+                    var_name = parts[1]
+                    variable_names.append(var_name)
                 continue
 
-            if line.startswith("---"):
+            if s.lower().startswith('values:'):
+                data_start = line_no + 1
+                break
+
+        # --- Data Parsing ---
+        # Initialize dictionary with lists for each variable
+        node_data = {name: [] for name in variable_names}
+
+        value_lines = [line.strip() for line in lines[data_start:] if line.strip()]
+
+        current_var_idx = 0
+        point_count = 0
+
+        for line in value_lines:
+            parts = line.split()
+            if not parts: continue
+
+            try:
+                # The value is the last part of the line
+                val = float(parts[-1])
+                var_name = variable_names[current_var_idx]
+                node_data[var_name].append(val)
+
+                current_var_idx += 1
+                if current_var_idx >= num_variables:
+                    current_var_idx = 0
+                    point_count += 1
+            except ValueError:
                 continue
 
-            if in_table:
-                parts = line.split()
-                if not parts or not parts[0].isdigit():
-                    in_table = False
-                    continue
+        # --- Mapping to Result Object ---
+        result.node_voltages = node_data
 
-                sweep_val = float(parts[1])
-                result.time.append(sweep_val)
-
-                for i in range(2, len(parts)):
-                    if i >= len(headers):
-                        break
-                    name = headers[i]
-                    val = float(parts[i])
-
-                    if name not in result.node_voltages:
-                        result.node_voltages[name] = []
-                    result.node_voltages[name].append(val)
+        # IMPORTANT: Your app expects the X-axis in 'result.time'
+        # In a DC sweep, the first variable (index 0) is the X-axis.
+        sweep_name = variable_names[0]
+        result.time = node_data[sweep_name]
 
     def _parse_tran_raw_file(self, result, filename):
         with open(filename, "r") as f:
