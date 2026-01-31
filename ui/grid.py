@@ -29,8 +29,8 @@ class GridItem(QGraphicsItem):
         self.update()  # Trigger repaint
 
     def boundingRect(self) -> QRectF:
-        """Defines the area that the grid covers."""
-        return QRectF(-5000, -5000, 10000, 10000)
+        MAX = 1e6
+        return QRectF(-MAX, -MAX, 2*MAX, 2*MAX)
 
     def paint(self, painter: QPainter, option, widget: Optional[QWidget] = None) -> None:
         """Draws the vertical and horizontal grid lines within the visible area."""
@@ -46,15 +46,30 @@ class GridItem(QGraphicsItem):
         # Optimization: Only draw the portion of the grid currently visible in the viewport
         visible_rect = option.exposedRect
 
-        left = int(visible_rect.left()) - (int(visible_rect.left()) % self.spacing)
-        top = int(visible_rect.top()) - (int(visible_rect.top()) % self.spacing)
+        # Calculate the grid alignment based on spacing
+        left = int(visible_rect.left())
+        if left >= 0:
+            left = left - (left % self.spacing)
+        else:
+            left = left - (self.spacing + (left % self.spacing))
+
+        top = int(visible_rect.top())
+        if top >= 0:
+            top = top - (top % self.spacing)
+        else:
+            top = top - (self.spacing + (top % self.spacing))
+
         right = int(visible_rect.right())
         bottom = int(visible_rect.bottom())
 
         # Draw vertical lines
-        for x in range(left, right + 5 * self.spacing, 5 * self.spacing):
+        x = left
+        while x <= right:
             painter.drawLine(x, top, x, bottom)
+            x += 5 * self.spacing
 
         # Draw horizontal lines
-        for y in range(top, bottom + 5 * self.spacing, 5 * self.spacing):
+        y = top
+        while y <= bottom:
             painter.drawLine(left, y, right, y)
+            y += 5 * self.spacing

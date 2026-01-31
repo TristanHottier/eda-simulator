@@ -10,7 +10,7 @@ class WireSegmentItem(QGraphicsLineItem):
     Represents a single segment of an electrical connection.
     FIX: Updated GRID_SIZE to 25px for finer wire routing.
     """
-    GRID_SIZE = 10  # Changed from 50
+    GRID_SIZE = 25  # Changed from 50
 
     DEFAULT_COLOR = QColor(255, 0, 0)  # Red
 

@@ -16,10 +16,11 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 
 # Try to import pyqtgraph, provide fallback if not available
-try: 
+try:
     import pyqtgraph as pg
+
     PYQTGRAPH_AVAILABLE = True
-except ImportError: 
+except ImportError:
     PYQTGRAPH_AVAILABLE = False
 
 from simulation.waveform_data import (
@@ -55,9 +56,9 @@ class WaveformPlot(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        if PYQTGRAPH_AVAILABLE: 
+        if PYQTGRAPH_AVAILABLE:
             self._setup_pyqtgraph()
-        else: 
+        else:
             self._setup_fallback()
 
     def _setup_pyqtgraph(self):
@@ -117,15 +118,18 @@ class WaveformPlot(QWidget):
 
     def _on_mouse_moved(self, pos):
         """Handles mouse movement for crosshair cursor."""
-        if not PYQTGRAPH_AVAILABLE: 
+        if not PYQTGRAPH_AVAILABLE:
             return
 
         if self._plot_widget.sceneBoundingRect().contains(pos):
             mouse_point = self._plot_widget.getPlotItem().vb.mapSceneToView(pos)
             x, y = mouse_point.x(), mouse_point.y()
+            crosshair_color = "y" if self._dark_mode else 'b'
 
             self._vline.setPos(x)
             self._hline.setPos(y)
+            self._vline.setPen(pg.mkPen(color=crosshair_color, width=1, style=Qt.DashLine))
+            self._hline.setPen(pg.mkPen(color=crosshair_color, width=1, style=Qt.DashLine))
             self._vline.show()
             self._hline.show()
 
@@ -142,17 +146,17 @@ class WaveformPlot(QWidget):
             waveform: The waveform to add.
             color: Optional color override (hex string).
 
-        Returns: 
+        Returns:
             bool: True if successfully added.
         """
-        if not PYQTGRAPH_AVAILABLE: 
+        if not PYQTGRAPH_AVAILABLE:
             return False
 
         if waveform.name in self._waveforms:
             self.remove_waveform(waveform.name)
 
         # Determine color
-        if color is None: 
+        if color is None:
             color = waveform.color or get_waveform_color(len(self._waveforms))
 
         # Create pen
@@ -179,7 +183,7 @@ class WaveformPlot(QWidget):
         Returns:
             bool: True if successfully removed.
         """
-        if not PYQTGRAPH_AVAILABLE: 
+        if not PYQTGRAPH_AVAILABLE:
             return False
 
         if name in self._waveforms:
@@ -203,7 +207,7 @@ class WaveformPlot(QWidget):
         self._plot_widget.addItem(self._vline, ignoreBounds=True)
         self._plot_widget.addItem(self._hline, ignoreBounds=True)
 
-    def set_waveform_visible(self, name:  str, visible: bool):
+    def set_waveform_visible(self, name: str, visible: bool):
         """Sets the visibility of a waveform."""
         if not PYQTGRAPH_AVAILABLE:
             return
@@ -215,7 +219,7 @@ class WaveformPlot(QWidget):
 
     def auto_range(self):
         """Auto-scales the plot to fit all data."""
-        if PYQTGRAPH_AVAILABLE: 
+        if PYQTGRAPH_AVAILABLE:
             self._plot_widget.autoRange()
 
     def set_x_range(self, x_min: float, x_max: float):
@@ -223,15 +227,15 @@ class WaveformPlot(QWidget):
         if PYQTGRAPH_AVAILABLE:
             self._plot_widget.setXRange(x_min, x_max)
 
-    def set_y_range(self, y_min: float, y_max:  float):
+    def set_y_range(self, y_min: float, y_max: float):
         """Sets the Y-axis range."""
-        if PYQTGRAPH_AVAILABLE: 
+        if PYQTGRAPH_AVAILABLE:
             self._plot_widget.setYRange(y_min, y_max)
 
-    def set_title(self, title:  str):
+    def set_title(self, title: str):
         """Sets the plot title."""
         self._title = title
-        if PYQTGRAPH_AVAILABLE: 
+        if PYQTGRAPH_AVAILABLE:
             self._plot_widget.setTitle(title, color='w', size='12pt')
 
     def set_labels(self, x_label: str, y_label: str):
@@ -242,33 +246,35 @@ class WaveformPlot(QWidget):
             self._plot_widget.setLabel('bottom', x_label, color='w')
             self._plot_widget.setLabel('left', y_label, color='w')
 
-    def set_dark_mode(self, dark:  bool):
+    def set_dark_mode(self, dark: bool):
         """Sets the color scheme."""
         self._dark_mode = dark
-        if not PYQTGRAPH_AVAILABLE: 
+        if not PYQTGRAPH_AVAILABLE:
             return
 
         if dark:
             self._plot_widget.setBackground('#1e1e1e')
-            text_color = 'w'
+            text_color = '#ffffff'
             grid_alpha = 0.3
-        else: 
-            self._plot_widget.setBackground('#ffffff')
-            text_color = 'k'
-            grid_alpha = 0.2
+        else:
+            self._plot_widget.setBackground('#e1e1e1')
+            text_color = '#000000'
+            grid_alpha = 0.7
 
         self._plot_widget.setTitle(self._title, color=text_color, size='12pt')
         self._plot_widget.setLabel('bottom', self._x_label, color=text_color)
         self._plot_widget.setLabel('left', self._y_label, color=text_color)
         self._plot_widget.showGrid(x=True, y=True, alpha=grid_alpha)
+        self._plot_widget.getAxis('bottom').setTextPen(text_color)
+        self._plot_widget.getAxis('left').setTextPen(text_color)
 
     def get_waveform_names(self) -> List[str]:
         """Returns the names of all waveforms in the plot."""
         return list(self._waveforms.keys())
 
-    def export_image(self, filename:  str):
+    def export_image(self, filename: str):
         """Exports the plot as an image."""
-        if PYQTGRAPH_AVAILABLE: 
+        if PYQTGRAPH_AVAILABLE:
             exporter = pg.exporters.ImageExporter(self._plot_widget.getPlotItem())
             exporter.export(filename)
 
@@ -310,7 +316,7 @@ class WaveformLegendItem(QWidget):
         """Handles visibility checkbox state change."""
         self.visibility_changed.emit(self._name, state == Qt.Checked)
 
-    def set_visible(self, visible:  bool):
+    def set_visible(self, visible: bool):
         """Sets the visibility state."""
         self._checkbox.setChecked(visible)
 
@@ -365,7 +371,7 @@ class CursorReadout(QWidget):
 
     def set_dark_mode(self, dark: bool):
         """Updates colors for theme."""
-        text_color = "white" if dark else "black"
+        text_color = "#ffffff" if dark else "#000000"
         self._x_label.setStyleSheet(f"color: {text_color}; font-family:  monospace;")
         self._y_label.setStyleSheet(f"color:  {text_color}; font-family:  monospace;")
 
@@ -410,7 +416,7 @@ class OperatingPointPanel(QWidget):
         text_color = "white" if self._dark_mode else "black"
 
         # Node voltages section
-        if op_data.node_voltages: 
+        if op_data.node_voltages:
             header = QLabel("Node Voltages")
             header.setStyleSheet(f"font-weight: bold; color: {text_color};")
             self._content_layout.addWidget(header, row, 0, 1, 2)
@@ -430,7 +436,7 @@ class OperatingPointPanel(QWidget):
                 row += 1
 
         # Branch currents section
-        if op_data.branch_currents: 
+        if op_data.branch_currents:
             spacer = QLabel("")
             self._content_layout.addWidget(spacer, row, 0)
             row += 1
@@ -466,7 +472,7 @@ class OperatingPointPanel(QWidget):
     def set_dark_mode(self, dark: bool):
         """Updates colors for theme."""
         self._dark_mode = dark
-        bg_color = "#2d2d2d" if dark else "#f5f5f5"
+        bg_color = "#2d2d2d" if dark else "#d2d2d2"
         self.setStyleSheet(f"background-color:  {bg_color};")
 
 
@@ -481,7 +487,7 @@ class WaveformViewer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._simulation_data:  Optional[SimulationData] = None
+        self._simulation_data: Optional[SimulationData] = None
         self._dark_mode = True
         self._current_analysis = None
 
@@ -651,7 +657,7 @@ class WaveformViewer(QWidget):
             self._show_transient()
         elif analysis_type == "ac_analysis":
             self._show_ac_analysis()
-        elif analysis_type == "dc_sweep": 
+        elif analysis_type == "dc_sweep":
             self._show_dc_sweep()
 
     def _show_operating_point(self):
@@ -732,7 +738,7 @@ class WaveformViewer(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-    def _on_waveform_visibility_changed(self, name: str, visible:  bool):
+    def _on_waveform_visibility_changed(self, name: str, visible: bool):
         """Handles waveform visibility toggle."""
         self._plot.set_waveform_visible(name, visible)
 
@@ -773,10 +779,10 @@ class WaveformViewer(QWidget):
 
         if self._dark_mode:
             bg_color = "#2d2d2d"
-            text_color = "white"
+            text_color = "#ffffff"
         else:
-            bg_color = "#f5f5f5"
-            text_color = "black"
+            bg_color = "#d2d2d2"
+            text_color = "#000000"
 
         self.setStyleSheet(f"""
             QWidget {{
@@ -785,25 +791,21 @@ class WaveformViewer(QWidget):
             }}
             QGroupBox {{
                 font-weight: bold;
-                border: 1px solid #555555;
+                border: 1px solid {'#555555' if self._dark_mode else '#aaaaaa'};
                 border-radius: 4px;
                 margin-top: 10px;
                 padding-top: 10px;
             }}
-            QGroupBox:: title {{
+            QGroupBox::title {{
                 subcontrol-origin:  margin;
                 left: 10px;
                 padding: 0 5px;
             }}
             QComboBox, QPushButton {{
-                background-color: {'#3d3d3d' if self._dark_mode else '#e0e0e0'};
-                border: 1px solid #555555;
-                border-radius:  4px;
-                padding: 5px 10px;
-                min-height: 20px;
+                background-color: {'#3d3d3d' if self._dark_mode else '#f1f1f1'};
             }}
             QPushButton:hover {{
-                background-color: {'#4d4d4d' if self._dark_mode else '#d0d0d0'};
+                background-color: {'#4d4d4d' if self._dark_mode else '#e7e7e7'};
             }}
             QScrollArea {{
                 border: none;

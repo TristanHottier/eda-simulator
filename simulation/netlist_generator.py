@@ -8,7 +8,6 @@ a valid SPICE netlist that can be executed by ngspice or PySpice.
 
 from typing import List, Dict, Tuple, Optional, Set
 from dataclasses import dataclass
-from enum import Enum
 
 
 class NetlistError(Exception):
@@ -49,7 +48,7 @@ class NetlistComponent:
         """Converts this component to a SPICE netlist line."""
         if self.comp_type == "resistor":
             # R<name> <node1> <node2> <value>
-            value = self._format_resistance(self.parameters.get("resistance", 1000))
+            value = self._format_resistance(self.parameters.get("resistance", 1))
             return f"R{self.ref} {self.nodes[0]} {self.nodes[1]} {value}"
 
         elif self.comp_type == "capacitor":
@@ -109,16 +108,18 @@ class NetlistComponent:
     def _format_resistance(self, value: float) -> str:
         """Formats resistance value with appropriate suffix."""
         if value >= 1e6:
-            return f"{value / 1e6}MEG"
+            return f"{value / 1e6}G"
         elif value >= 1e3:
-            return f"{value / 1e3}K"
+            return f"{value / 1e3}M"
+        elif value >= 1:
+            return f"{value}k"
         else:
-            return str(value)
+            return str(value * 1e3)
 
     def _format_capacitance(self, value: float) -> str:
-        """Formats capacitance value (input assumed in nF) with appropriate suffix."""
-        # Input is in nF, convert to F for SPICE
-        value_f = value * 1e-9
+        """Formats capacitance value (input assumed in µF) with appropriate suffix."""
+        # Input is in µF, convert to F for SPICE
+        value_f = value * 1e-6
         if value_f >= 1e-6:
             return f"{value_f * 1e6}U"
         elif value_f >= 1e-9:

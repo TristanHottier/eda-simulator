@@ -26,11 +26,14 @@ class SchematicView(QGraphicsView):
         # --- Scene & View Configuration ---
         self._scene = QGraphicsScene()
         self.setScene(self._scene)
-        self.setSceneRect(-5000, -5000, 10000, 10000)
+        MAX = 1e6
+        self.setSceneRect(-MAX, -MAX, 2*MAX, 2*MAX)
 
         self.setBackgroundBrush(QColor(20, 20, 20))
         self.setMouseTracking(True)
         self.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setDragMode(QGraphicsView.RubberBandDrag)
 
         # Ensures zoom centers on the mouse cursor
@@ -83,12 +86,6 @@ class SchematicView(QGraphicsView):
         # Update all junctions
         for junction in self.junctions:
             junction.set_dark_mode(dark)
-
-        # Update all component pins
-        for item in self._scene.items():
-            if isinstance(item, ComponentItem):
-                for pin_item in item.pin_items:
-                    pin_item.set_dark_mode(dark)
 
     def wheelEvent(self, event: QWheelEvent) -> None:
         """Handles zooming via the mouse scroll wheel."""

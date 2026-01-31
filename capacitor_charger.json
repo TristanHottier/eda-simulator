@@ -2,25 +2,13 @@
   "version": "0.1",
   "components": [
     {
-      "ref": "V1",
-      "comp_type": "dc_voltage_source",
+      "ref": "GND1",
+      "comp_type": "ground",
       "x": -300.0,
-      "y": 0.0,
+      "y": 150.0,
       "rotation": 0.0,
       "parameters": {
-        "voltage": 5.0,
-        "type": "dc_voltage_source"
-      }
-    },
-    {
-      "ref": "R1",
-      "comp_type": "resistor",
-      "x": -250.0,
-      "y": -50.0,
-      "rotation": 0.0,
-      "parameters": {
-        "resistance": 1,
-        "type": "resistor"
+        "type": "ground"
       }
     },
     {
@@ -30,34 +18,62 @@
       "y": -50.0,
       "rotation": 0.0,
       "parameters": {
-        "capacitance": 100,
+        "capacitance": 200000,
         "type": "capacitor"
       }
     },
     {
-      "ref": "GND1",
-      "comp_type": "ground",
-      "x": -300.0,
-      "y": 150.0,
+      "ref": "R1",
+      "comp_type": "resistor",
+      "x": -250.0,
+      "y": -50.0,
       "rotation": 0.0,
       "parameters": {
-        "type": "ground"
+        "resistance": 1000,
+        "type": "resistor"
+      }
+    },
+    {
+      "ref": "V1",
+      "comp_type": "dc_voltage_source",
+      "x": -300.0,
+      "y": 0.0,
+      "rotation": 0.0,
+      "parameters": {
+        "voltage": 5.0,
+        "type": "dc_voltage_source"
       }
     }
   ],
   "wires": [
     {
-      "x1": -275.0,
-      "y1": 0.0,
-      "x2": -250.0,
-      "y2": -25.0,
-      "net_id": 3,
+      "x1": 0.0,
+      "y1": 100.0,
+      "x2": -275.0,
+      "y2": 100.0,
+      "net_id": 4,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 0.0,
+      "y1": -25.0,
+      "x2": 0.0,
+      "y2": 100.0,
+      "net_id": 4,
       "color": "#ff0000"
     },
     {
       "x1": -150.0,
       "y1": -25.0,
       "x2": -100.0,
+      "y2": -25.0,
+      "net_id": 3,
+      "color": "#ff0000"
+    },
+    {
+      "x1": -275.0,
+      "y1": 0.0,
+      "x2": -250.0,
       "y2": -25.0,
       "net_id": 2,
       "color": "#ff0000"
@@ -67,24 +83,8 @@
       "y1": 150.0,
       "x2": -275.0,
       "y2": 100.0,
-      "net_id": 1,
-      "color": "#00ffff"
-    },
-    {
-      "x1": -275.0,
-      "y1": 100.0,
-      "x2": 0.0,
-      "y2": 100.0,
-      "net_id": 1,
-      "color": "#00ffff"
-    },
-    {
-      "x1": 0.0,
-      "y1": 100.0,
-      "x2": 0.0,
-      "y2": -25.0,
-      "net_id": 1,
-      "color": "#00ffff"
+      "net_id": 4,
+      "color": "#ff0000"
     }
   ]
 }
