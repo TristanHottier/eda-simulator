@@ -386,9 +386,8 @@ class OperatingPointPanel(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
 
         # Title
-        title = QLabel("DC Operating Point")
-        title.setStyleSheet("font-weight: bold; font-size: 14px; color: white;")
-        layout.addWidget(title)
+        self.title = QLabel("DC Operating Point")
+        layout.addWidget(self.title)
 
         # Scroll area for values
         scroll = QScrollArea()
@@ -400,7 +399,12 @@ class OperatingPointPanel(QWidget):
         self._content_layout.setColumnStretch(1, 1)
         scroll.setWidget(self._content)
 
-        layout.addWidget(scroll)
+        layout.addWidget(scroll, 1)
+
+        self.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Expanding
+        )
 
         self._dark_mode = True
 
@@ -413,23 +417,26 @@ class OperatingPointPanel(QWidget):
                 item.widget().deleteLater()
 
         row = 0
-        text_color = "white" if self._dark_mode else "black"
 
         # Node voltages section
         if op_data.node_voltages:
             header = QLabel("Node Voltages")
-            header.setStyleSheet(f"font-weight: bold; color: {text_color};")
+            header.setStyleSheet("font-weight: bold;")
             self._content_layout.addWidget(header, row, 0, 1, 2)
             row += 1
 
             for node, voltage in sorted(op_data.node_voltages.items()):
                 simple_name = node
                 if simple_name.lower().startswith('v(') and simple_name.endswith(')'):
-                    simple_name = simple_name[2:-1]  # Extract N3 from v(n3)
+                    simple_name = simple_name[2:-1]
+
                 name_label = QLabel(f"V({simple_name.upper()}):")
-                name_label.setStyleSheet(f"color:  {text_color};")
                 value_label = QLabel(f"{voltage:.6g} V")
-                value_label.setStyleSheet(f"color: #4ECDC4; font-family: monospace;")
+
+                # Accent color stays explicit
+                value_label.setStyleSheet(
+                    "color: #4CAF50; font-family: monospace;"
+                )
 
                 self._content_layout.addWidget(name_label, row, 0)
                 self._content_layout.addWidget(value_label, row, 1)
@@ -437,23 +444,25 @@ class OperatingPointPanel(QWidget):
 
         # Branch currents section
         if op_data.branch_currents:
-            spacer = QLabel("")
-            self._content_layout.addWidget(spacer, row, 0)
-            row += 1
+
 
             header = QLabel("Branch Currents")
-            header.setStyleSheet(f"font-weight: bold; color: {text_color};")
+            header.setStyleSheet("font-weight: bold;")
             self._content_layout.addWidget(header, row, 0, 1, 2)
             row += 1
 
             for comp, current in sorted(op_data.branch_currents.items()):
                 simple_name = comp
                 if simple_name.lower().startswith('i(') and simple_name.endswith(')'):
-                    simple_name = simple_name[2:-1]  # Extract V1 from i(v1)
+                    simple_name = simple_name[2:-1]
+
                 name_label = QLabel(f"I({simple_name.upper()}):")
-                name_label.setStyleSheet(f"color: {text_color};")
                 value_label = QLabel(f"{current:.6g} A")
-                value_label.setStyleSheet(f"color:  #FF6B6B; font-family: monospace;")
+
+                # Accent color stays explicit
+                value_label.setStyleSheet(
+                    "color: #FF6B6B; font-family: monospace;"
+                )
 
                 self._content_layout.addWidget(name_label, row, 0)
                 self._content_layout.addWidget(value_label, row, 1)
@@ -472,8 +481,22 @@ class OperatingPointPanel(QWidget):
     def set_dark_mode(self, dark: bool):
         """Updates colors for theme."""
         self._dark_mode = dark
+
         bg_color = "#2d2d2d" if dark else "#d2d2d2"
-        self.setStyleSheet(f"background-color:  {bg_color};")
+        text_color = "white" if dark else "black"
+
+        self.title.setStyleSheet(f"font-weight: bold; font-size: 14px; color: {text_color};")
+
+        # Default QLabel color changes automatically,
+        # accent-colored labels remain untouched
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {bg_color};
+            }}
+            QLabel {{
+                color: {text_color};
+            }}
+        """)
 
 
 class WaveformViewer(QWidget):
@@ -593,12 +616,12 @@ class WaveformViewer(QWidget):
         self._legend_scroll.setWidget(self._legend_content)
 
         legend_layout.addWidget(self._legend_scroll)
-        layout.addWidget(legend_group)
+        layout.addWidget(legend_group, 0)
 
         # Operating point panel (shown for OP analysis)
         self._op_panel = OperatingPointPanel()
         self._op_panel.hide()
-        layout.addWidget(self._op_panel)
+        layout.addWidget(self._op_panel, 1)
 
         layout.addStretch()
 

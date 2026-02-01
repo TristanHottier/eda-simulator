@@ -427,11 +427,11 @@ class SchematicView(QGraphicsView):
                 return 50  # Snap to 50px grid
 
         # If no components are selected, snap to 10px grid
-        return 10
+        return 25
 
     def load_from_json(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open Schematic", "", "JSON Files (*.json)")
-        if not path:  return
+        if not path: return
         with open(path, 'r') as f:
             data = json.load(f)
         self._scene.clear()

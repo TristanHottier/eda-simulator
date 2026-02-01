@@ -26,11 +26,14 @@ class GridItem(QGraphicsItem):
     def set_dark_mode(self, dark: bool) -> None:
         """Updates the grid color based on theme."""
         self._dark_mode = dark
-        self.update()  # Trigger repaint
+        try:
+            self.update()  # Trigger repaint
+        except RuntimeError as e:
+            pass  # If it ain't broke don't fix it
 
     def boundingRect(self) -> QRectF:
         MAX = 1e6
-        return QRectF(-MAX, -MAX, 2*MAX, 2*MAX)
+        return QRectF(-MAX, -MAX, 2 * MAX, 2 * MAX)
 
     def paint(self, painter: QPainter, option, widget: Optional[QWidget] = None) -> None:
         """Draws the vertical and horizontal grid lines within the visible area."""
