@@ -1,0 +1,288 @@
+{
+  "version": "0.1",
+  "components": [
+    {
+      "ref": "R6",
+      "comp_type": "resistor",
+      "x": 500.0,
+      "y": 100.0,
+      "rotation": 0.0,
+      "parameters": {
+        "resistance": 1000000,
+        "type": "resistor"
+      }
+    },
+    {
+      "ref": "R5",
+      "comp_type": "resistor",
+      "x": 500.0,
+      "y": -100.0,
+      "rotation": 0.0,
+      "parameters": {
+        "resistance": 1000000,
+        "type": "resistor"
+      }
+    },
+    {
+      "ref": "V1",
+      "comp_type": "ac_voltage_source",
+      "x": -400.0,
+      "y": 50.0,
+      "rotation": 0.0,
+      "parameters": {
+        "voltage": 5.0,
+        "frequency": 1000,
+        "type": "ac_voltage_source"
+      }
+    },
+    {
+      "ref": "GND1",
+      "comp_type": "ground",
+      "x": -100.0,
+      "y": 300.0,
+      "rotation": 0.0,
+      "parameters": {
+        "type": "ground"
+      }
+    },
+    {
+      "ref": "T1",
+      "comp_type": "transistor",
+      "x": 50.0,
+      "y": 0.0,
+      "rotation": 0.0,
+      "parameters": {
+        "family_type": "bjt",
+        "type": "npn",
+        "IS": 1e-15,
+        "BF": 100,
+        "NF": 1.0,
+        "VAF": 100,
+        "IKF": 0.1,
+        "CJE": 2e-12,
+        "CJC": 1e-12,
+        "TF": 5e-10,
+        "KP": 5e-05,
+        "LAMBDA": 0.02,
+        "CGS": 1e-12,
+        "CGD": 1e-12,
+        "CBD": 1e-12
+      }
+    },
+    {
+      "ref": "C3",
+      "comp_type": "capacitor",
+      "x": 300.0,
+      "y": 100.0,
+      "rotation": 0.0,
+      "parameters": {
+        "capacitance": 22,
+        "type": "capacitor"
+      }
+    },
+    {
+      "ref": "C2",
+      "comp_type": "capacitor",
+      "x": 300.0,
+      "y": -100.0,
+      "rotation": 0.0,
+      "parameters": {
+        "capacitance": 22,
+        "type": "capacitor"
+      }
+    },
+    {
+      "ref": "R4",
+      "comp_type": "resistor",
+      "x": 50.0,
+      "y": 150.0,
+      "rotation": 90.0,
+      "parameters": {
+        "resistance": 0.68,
+        "type": "resistor"
+      }
+    },
+    {
+      "ref": "R3",
+      "comp_type": "resistor",
+      "x": 50.0,
+      "y": -150.0,
+      "rotation": 90.0,
+      "parameters": {
+        "resistance": 4.7,
+        "type": "resistor"
+      }
+    },
+    {
+      "ref": "R2",
+      "comp_type": "resistor",
+      "x": -150.0,
+      "y": 150.0,
+      "rotation": 270.0,
+      "parameters": {
+        "resistance": 100,
+        "type": "resistor"
+      }
+    },
+    {
+      "ref": "R1",
+      "comp_type": "resistor",
+      "x": -150.0,
+      "y": -150.0,
+      "rotation": 90.0,
+      "parameters": {
+        "resistance": 330,
+        "type": "resistor"
+      }
+    },
+    {
+      "ref": "C1",
+      "comp_type": "capacitor",
+      "x": -250.0,
+      "y": 0.0,
+      "rotation": 0.0,
+      "parameters": {
+        "capacitance": 10,
+        "type": "capacitor"
+      }
+    }
+  ],
+  "wires": [
+    {
+      "x1": 600.0,
+      "y1": 230.0,
+      "x2": 100.0,
+      "y2": 225.0,
+      "net_id": 10,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 600.0,
+      "y1": 125.0,
+      "x2": 600.0,
+      "y2": 230.0,
+      "net_id": 10,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 600.0,
+      "y1": -75.0,
+      "x2": 600.0,
+      "y2": 125.0,
+      "net_id": 10,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 400.0,
+      "y1": 125.0,
+      "x2": 500.0,
+      "y2": 125.0,
+      "net_id": 9,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 400.0,
+      "y1": -75.0,
+      "x2": 500.0,
+      "y2": -75.0,
+      "net_id": 8,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 115.0,
+      "y1": -4.0,
+      "x2": 300.0,
+      "y2": -75.0,
+      "net_id": 5,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 300.0,
+      "y1": 125.0,
+      "x2": 115.0,
+      "y2": 54.0,
+      "net_id": 6,
+      "color": "#ff0000"
+    },
+    {
+      "x1": -75.0,
+      "y1": 300.0,
+      "x2": -100.0,
+      "y2": 225.0,
+      "net_id": 10,
+      "color": "#ff0000"
+    },
+    {
+      "x1": -150.0,
+      "y1": 25.0,
+      "x2": 50.0,
+      "y2": 25.0,
+      "net_id": 3,
+      "color": "#ff0000"
+    },
+    {
+      "x1": -100.0,
+      "y1": 125.0,
+      "x2": -150.0,
+      "y2": 25.0,
+      "net_id": 3,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 100.0,
+      "y1": 225.0,
+      "x2": -100.0,
+      "y2": 225.0,
+      "net_id": 10,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 115.0,
+      "y1": 54.0,
+      "x2": 100.0,
+      "y2": 125.0,
+      "net_id": 6,
+      "color": "#ff0000"
+    },
+    {
+      "x1": 100.0,
+      "y1": -75.0,
+      "x2": 115.0,
+      "y2": -4.0,
+      "net_id": 5,
+      "color": "#ff0000"
+    },
+    {
+      "x1": -100.0,
+      "y1": -175.0,
+      "x2": 100.0,
+      "y2": -175.0,
+      "net_id": 4,
+      "color": "#ff0000"
+    },
+    {
+      "x1": -150.0,
+      "y1": 25.0,
+      "x2": -100.0,
+      "y2": -75.0,
+      "net_id": 3,
+      "color": "#ff0000"
+    },
+    {
+      "x1": -375.0,
+      "y1": 50.0,
+      "x2": -250.0,
+      "y2": 25.0,
+      "net_id": 2,
+      "color": "#ff0000"
+    },
+    {
+      "x1": -375.0,
+      "y1": 150.0,
+      "x2": -75.0,
+      "y2": 300.0,
+      "net_id": 10,
+      "color": "#ff0000"
+    }
+  ]
+}

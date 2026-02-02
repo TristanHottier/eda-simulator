@@ -445,7 +445,6 @@ class OperatingPointPanel(QWidget):
         # Branch currents section
         if op_data.branch_currents:
 
-
             header = QLabel("Branch Currents")
             header.setStyleSheet("font-weight: bold;")
             self._content_layout.addWidget(header, row, 0, 1, 2)

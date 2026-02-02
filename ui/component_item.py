@@ -18,9 +18,46 @@ class ComponentItem(QGraphicsRectItem):
         "capacitance": "uF",
         "voltage_drop": "V",
         "inductance": "mH",
-        "voltage":  "V",
+        "voltage": "V",
         "frequency": "Hz",
         "current": "A"
+    }
+
+    BJT_PARTS = {
+        "normal": [
+            "trans_base_lead",
+            "trans_collector_line",
+            "trans_collector_lead",
+            "trans_emitter_line",
+            "trans_emitter_lead",
+        ],
+        "thick": [
+            "trans_base_bar",
+        ],
+        "arrow": [
+            "trans_arrow",
+        ],
+    }
+
+    MOSFET_PARTS = {
+        "normal": [
+            "trans_gate_lead",
+            "trans_drain_horiz",
+            "trans_drain_lead",
+            "trans_source_horiz",
+            "trans_middle_vertical",
+            "trans_source_lead",
+            "trans_middle_horizontal",
+        ],
+        "thick": [
+            "trans_gate_bar",
+            "trans_drain_line",
+            "trans_body_diode",
+            "trans_source_line",
+        ],
+        "arrow": [
+            "trans_arrow",
+        ],
     }
 
     def __init__(self, component_model, width: int = 100, height: int = 50):
@@ -35,7 +72,7 @@ class ComponentItem(QGraphicsRectItem):
 
         super().__init__(0, 0, width, height)
         self.model = component_model
-        self.ref:  str = self.model.ref
+        self.ref: str = self.model.ref
         self.old_pos: Optional[QPointF] = None
         self._is_being_moved_by_master = False
 
@@ -73,7 +110,7 @@ class ComponentItem(QGraphicsRectItem):
             p_item = PinItem(pin_logic, pin_logic.rel_x, pin_logic.rel_y, self)
             self.pin_items.append(p_item)
 
-    def set_dark_mode(self, dark:  bool) -> None:
+    def set_dark_mode(self, dark: bool) -> None:
         """Updates the component colors based on theme."""
         self._dark_mode = dark
         self._stroke_color = QColor("white") if dark else QColor("black")
@@ -137,6 +174,30 @@ class ComponentItem(QGraphicsRectItem):
             elif diode_type == "schottky":
                 self.schottky_label.setDefaultTextColor(self._stroke_color)
 
+        elif comp_type == "transistor":
+            transistor_type = self.model.parameters.get("type", "npn")
+
+            if transistor_type in ("npn", "pnp"):
+                parts = self.BJT_PARTS
+            elif transistor_type in ("nmos", "pmos"):
+                parts = self.MOSFET_PARTS
+            else:
+                parts = {}
+
+            for name in parts.get("normal", []):
+                item = getattr(self, name, None)
+                if item:
+                    item.setPen(pen)
+            for name in parts.get("thick", []):
+                item = getattr(self, name, None)
+                if item:
+                    item.setPen(thick_pen)
+            for name in parts.get("arrow", []):
+                item = getattr(self, name, None)
+                if item:
+                    item.setPen(pen)
+                    item.setBrush(QBrush(self._stroke_color))
+
         elif comp_type == "ground":
             self.gnd_vertical.setPen(pen)
             for i, bar in enumerate(self.gnd_bars):
@@ -179,7 +240,7 @@ class ComponentItem(QGraphicsRectItem):
             self.generic_lead_left.setPen(pen)
             self.generic_lead_right.setPen(pen)
 
-    def _create_symbol(self, width:  int, height: int) -> None:
+    def _create_symbol(self, width: int, height: int) -> None:
         comp_type = self.model.type
 
         if comp_type == "resistor":
@@ -194,6 +255,10 @@ class ComponentItem(QGraphicsRectItem):
             # Check which diode type to draw (silicon, schottky, zener) via parameter 'diode_type'
             diode_type = self.model.parameters.get("diode_type", "silicon")
             self._create_diode_symbol(width, height, diode_type)
+        elif comp_type == "transistor":
+            # Check which transistor type to draw
+            transistor_type = self.model.parameters.get("type", "npn")
+            self._create_transistor_symbol(width, height, transistor_type)
         elif comp_type == "ground":
             self._create_ground_symbol(width, height)
         elif comp_type in ("dc_voltage_source", "ac_voltage_source"):
@@ -203,7 +268,7 @@ class ComponentItem(QGraphicsRectItem):
         else:
             self._create_generic_symbol(width, height)
 
-    def _create_resistor_symbol(self, width: int, height:  int) -> None:
+    def _create_resistor_symbol(self, width: int, height: int) -> None:
         """Creates a proper zigzag resistor symbol (US style)."""
         pen = QPen(self._stroke_color, 2)
         center_y = height / 2
@@ -319,7 +384,7 @@ class ComponentItem(QGraphicsRectItem):
         self.inductor_lead_right = QGraphicsLineItem(coil_end, center_y, width, center_y, self)
         self.inductor_lead_right.setPen(pen)
 
-    def _create_led_symbol(self, width: int, height:  int) -> None:
+    def _create_led_symbol(self, width: int, height: int) -> None:
         """Creates an LED symbol (diode with arrows indicating light emission)."""
         pen = QPen(self._stroke_color, 2)
         center_x = width / 2
@@ -467,6 +532,261 @@ class ComponentItem(QGraphicsRectItem):
         self.diode_lead_right = QGraphicsLineItem(center_x + triangle_size / 2, center_y, width, center_y, self)
         self.diode_lead_right.setPen(pen)
 
+    def _create_transistor_symbol(self, width: int, height: int, transistor_type: str) -> None:
+        """
+        Create transistor symbol.
+        transistor_type: "npn", "pnp", "nmos", "pmos"
+        """
+        # 1. CLEANUP: Remove any existing transistor parts to avoid ghosting/overlaps
+        for attr in ["trans_base_lead", "trans_base_bar", "trans_collector_line",
+                     "trans_emitter_line", "trans_arrow", "trans_collector_lead",
+                     "trans_emitter_lead", "trans_gate_lead", "trans_gate_bar",
+                     "trans_drain_line", "trans_source_line", "trans_drain_lead",
+                     "trans_source_lead", "trans_body_diode", "trans_middle_horizontal"]:
+            if hasattr(self, attr):
+                item = getattr(self, attr)
+                if item and item.scene():
+                    item.setParentItem(None)
+                    self.scene().removeItem(item)
+                setattr(self, attr, None)
+
+        pen = QPen(self._stroke_color, 2)
+        center_x = width / 2
+        center_y = height / 2
+
+        if transistor_type in ["npn", "pnp"]:
+            # BJT Transistor
+            bar_height = 30
+            bar_offset = 8  # Distance from center to vertical bar
+            lead_length = 15
+            arrow_size = 6
+
+            # Base lead (horizontal line from left)
+            self.trans_base_lead = QGraphicsLineItem(
+                0, center_y,
+                center_x - bar_offset, center_y,
+                self
+            )
+            self.trans_base_lead.setPen(pen)
+
+            # Vertical bar at base
+            self.trans_base_bar = QGraphicsLineItem(
+                center_x - bar_offset, center_y - bar_height / 2,
+                center_x - bar_offset, center_y + bar_height / 2,
+                self
+            )
+            self.trans_base_bar.setPen(QPen(self._stroke_color, 3))
+
+            # Collector line (from bar to top)
+            collector_end_x = center_x + lead_length
+            collector_end_y = center_y - bar_height / 2 - 5
+            self.trans_collector_line = QGraphicsLineItem(
+                center_x - bar_offset, center_y - bar_height / 4,
+                collector_end_x, collector_end_y,
+                self
+            )
+            self.trans_collector_line.setPen(pen)
+
+            # Collector lead (vertical line to top)
+            self.trans_collector_lead = QGraphicsLineItem(
+                collector_end_x, 0,
+                collector_end_x, collector_end_y,
+                self
+            )
+            self.trans_collector_lead.setPen(pen)
+
+            # Emitter line (from bar to bottom)
+            emitter_end_x = center_x + lead_length
+            emitter_end_y = center_y + bar_height / 2 + 5
+            self.trans_emitter_line = QGraphicsLineItem(
+                center_x - bar_offset, center_y + bar_height / 4,
+                emitter_end_x, emitter_end_y,
+                self
+            )
+            self.trans_emitter_line.setPen(pen)
+
+            # Emitter lead (vertical line to bottom)
+            self.trans_emitter_lead = QGraphicsLineItem(
+                emitter_end_x, emitter_end_y,
+                emitter_end_x, height,
+                self
+            )
+            self.trans_emitter_lead.setPen(pen)
+
+            # Arrow on emitter line
+            # Calculate arrow direction based on transistor type
+            if transistor_type == "npn":
+                # Arrow pointing outward (away from base)
+                arrow_base_x = center_x - bar_offset + (emitter_end_x - center_x + bar_offset) * 0.6
+                arrow_base_y = center_y + bar_height / 4 + (emitter_end_y - center_y - bar_height / 4) * 0.6
+                arrow_tip_x = emitter_end_x
+                arrow_tip_y = emitter_end_y
+            else:  # pnp
+                # Arrow pointing inward (toward base)
+                arrow_tip_x = center_x - bar_offset + (emitter_end_x - center_x + bar_offset) * 0.6
+                arrow_tip_y = center_y + bar_height / 4 + (emitter_end_y - center_y - bar_height / 4) * 0.6
+                arrow_base_x = emitter_end_x
+                arrow_base_y = emitter_end_y
+
+            # Calculate perpendicular direction for arrow wings
+            dx = arrow_tip_x - arrow_base_x
+            dy = arrow_tip_y - arrow_base_y
+            length = (dx ** 2 + dy ** 2) ** 0.5
+
+            if length > 0:
+                # Normalize and create perpendicular
+                ux, uy = dx / length, dy / length
+                perp_x, perp_y = -uy, ux
+
+                # Arrow wings
+                arrow = QPolygonF([
+                    QPointF(arrow_tip_x, arrow_tip_y),
+                    QPointF(arrow_tip_x - ux * arrow_size + perp_x * arrow_size / 2,
+                            arrow_tip_y - uy * arrow_size + perp_y * arrow_size / 2),
+                    QPointF(arrow_tip_x - ux * arrow_size - perp_x * arrow_size / 2,
+                            arrow_tip_y - uy * arrow_size - perp_y * arrow_size / 2)
+                ])
+                self.trans_arrow = QGraphicsPolygonItem(arrow, self)
+                self.trans_arrow.setPen(pen)
+                self.trans_arrow.setBrush(QBrush(self._stroke_color))
+
+        elif transistor_type in ["nmos", "pmos"]:
+            # MOSFET Transistor
+            gate_offset = 12
+            channel_width = 20
+            segment_height = 8
+            gap = 3
+            lead_length = 15
+            arrow_size = 5
+
+            # Gate lead (horizontal line from left)
+            self.trans_gate_lead = QGraphicsLineItem(
+                0, center_y,
+                center_x - gate_offset, center_y,
+                self
+            )
+            self.trans_gate_lead.setPen(pen)
+
+            # Gate bar (vertical line)
+            self.trans_gate_bar = QGraphicsLineItem(
+                center_x - gate_offset, center_y - channel_width,
+                center_x - gate_offset, center_y + channel_width,
+                self
+            )
+            self.trans_gate_bar.setPen(QPen(self._stroke_color, 3))
+
+            # Three channel segments (vertical bars on right side of gate)
+            segment_x = center_x - gate_offset + gap + 3
+
+            # Top segment
+            self.trans_drain_line = QGraphicsLineItem(
+                segment_x, center_y - channel_width,
+                segment_x, center_y - channel_width + segment_height,
+                self
+            )
+            self.trans_drain_line.setPen(QPen(self._stroke_color, 3))
+
+            # Middle segment
+            self.trans_body_diode = QGraphicsLineItem(
+                segment_x, center_y - segment_height / 2,
+                segment_x, center_y + segment_height / 2,
+                self
+            )
+            self.trans_body_diode.setPen(QPen(self._stroke_color, 3))
+
+            # Bottom segment
+            self.trans_source_line = QGraphicsLineItem(
+                segment_x, center_y + channel_width - segment_height,
+                segment_x, center_y + channel_width,
+                self
+            )
+            self.trans_source_line.setPen(QPen(self._stroke_color, 3))
+
+            # Drain connection
+            drain_x = center_x + lead_length
+            drain_connect_y = center_y - channel_width + segment_height / 2
+
+            # Horizontal line from top segment to right
+            drain_horiz = QGraphicsLineItem(
+                segment_x, drain_connect_y,
+                drain_x, drain_connect_y,
+                self
+            )
+            drain_horiz.setPen(pen)
+            drain_horiz.setParentItem(self)
+            self.trans_drain_horiz = drain_horiz
+
+            # Vertical lead to top
+            self.trans_drain_lead = QGraphicsLineItem(
+                drain_x, 0,
+                drain_x, drain_connect_y,
+                self
+            )
+            self.trans_drain_lead.setPen(pen)
+
+            # Source connection
+            source_x = center_x + lead_length
+            source_connect_y = center_y + channel_width - segment_height / 2
+
+            # Horizontal line from bottom segment to right
+            source_horiz = QGraphicsLineItem(
+                segment_x, source_connect_y,
+                source_x, source_connect_y,
+                self
+            )
+            source_horiz.setPen(pen)
+            source_horiz.setParentItem(self)
+            self.trans_source_horiz = source_horiz
+
+            # Vertical connection from middle to source horizontal line
+            middle_to_source = QGraphicsLineItem(
+                source_x, center_y,
+                source_x, source_connect_y,
+                self
+            )
+            middle_to_source.setPen(pen)
+            self.trans_middle_vertical = middle_to_source
+
+            # Horizontal connection from middle to arrow
+            middle_to_source_x = QGraphicsLineItem(
+                source_x, center_y,
+                segment_x, center_y,
+                self
+            )
+            middle_to_source_x.setPen(pen)
+            self.trans_middle_horizontal = middle_to_source_x
+
+            # Vertical lead to bottom
+            self.trans_source_lead = QGraphicsLineItem(
+                source_x, source_connect_y,
+                source_x, height,
+                self
+            )
+            self.trans_source_lead.setPen(pen)
+
+            # Arrow on middle segment connection
+            arrow_x = source_x
+            arrow_y = center_y + (source_connect_y - center_y) / 2
+
+            if transistor_type == "nmos":
+                # Arrow pointing down (toward source)
+                arrow = QPolygonF([
+                    QPointF(arrow_x, arrow_y + arrow_size),
+                    QPointF(arrow_x - arrow_size / 2, arrow_y),
+                    QPointF(arrow_x + arrow_size / 2, arrow_y)
+                ])
+            else:  # p-mosfet
+                # Arrow pointing up (toward drain)
+                arrow = QPolygonF([
+                    QPointF(arrow_x, arrow_y - arrow_size),
+                    QPointF(arrow_x - arrow_size / 2, arrow_y),
+                    QPointF(arrow_x + arrow_size / 2, arrow_y)
+                ])
+
+            self.trans_arrow = QGraphicsPolygonItem(arrow, self)
+            self.trans_arrow.setPen(pen)
+            self.trans_arrow.setBrush(QBrush(self._stroke_color))
+
     def _create_ground_symbol(self, width: int, height: int) -> None:
         """Creates the ground symbol with horizontal lines."""
         pen = QPen(self._stroke_color, 2)
@@ -603,7 +923,7 @@ class ComponentItem(QGraphicsRectItem):
         self.arrow_head_item.setBrush(QBrush(self._stroke_color))
         self.arrow_head_item.setPen(QPen(Qt.NoPen))
 
-    def _draw_ac_symbol(self, width: int, height: int, circle_y: float, circle_diameter:  float) -> None:
+    def _draw_ac_symbol(self, width: int, height: int, circle_y: float, circle_diameter: float) -> None:
         """Draws a sine wave symbol in the CENTER of the voltage source circle."""
         center_x = width / 2
         center_y = circle_y + circle_diameter / 2
@@ -628,7 +948,7 @@ class ComponentItem(QGraphicsRectItem):
         self.ac_wave.setPen(QPen(self._stroke_color, 2))
         self.ac_wave.setBrush(QBrush(Qt.NoBrush))
 
-    def _draw_dc_symbol(self, width:  int, height: int, circle_y:  float, circle_diameter: float) -> None:
+    def _draw_dc_symbol(self, width: int, height: int, circle_y: float, circle_diameter: float) -> None:
         """Draws DC indicator lines in the CENTER of the voltage source circle."""
         center_x = width / 2
         center_y = circle_y + circle_diameter / 2
@@ -650,7 +970,7 @@ class ComponentItem(QGraphicsRectItem):
         )
         self.dc_line2.setPen(QPen(self._stroke_color, 2))
 
-    def _create_generic_symbol(self, width:  int, height: int) -> None:
+    def _create_generic_symbol(self, width: int, height: int) -> None:
         """Creates a generic rectangular component symbol."""
         pen = QPen(self._stroke_color, 2)
 
@@ -685,6 +1005,9 @@ class ComponentItem(QGraphicsRectItem):
         if self.model.type == "diode":
             dtype = self.model.parameters.get("diode_type", "silicon")
             self._create_diode_symbol(w, h, dtype)
+        if self.model.type == "transistor":
+            ttype = self.model.parameters.get("type", "bjt")
+            self._create_transistor_symbol(w, h, ttype)
 
         self.update()  # Force Qt to repaint the item
 

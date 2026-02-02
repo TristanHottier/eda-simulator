@@ -97,6 +97,44 @@ class NetlistComponent:
                     model_name = "DSTD"
             return f"D{self.ref} {self.nodes[0]} {self.nodes[1]} {model_name}"
 
+
+        elif self.comp_type == "transistor":
+
+            # Determine SPICE model name
+
+            if hasattr(self, "spice_model_name"):
+                model_name = self.spice_model_name
+            else:
+                # fallback default model
+                family = self.parameters.get("transistor_family", "bjt").lower()
+                t_type = self.parameters.get("transistor_type", "npn").lower()
+                if family == "bjt":
+                    model_name = "BPNP" if t_type == "pnp" else "BNPN"
+                elif family == "mosfet":
+                    model_name = "PMOS" if t_type == "pmos" else "NMOS"
+                else:
+                    model_name = "TSTD"
+
+            # Ensure family and t_type are defined even if spice_model_name exists
+            family = self.parameters.get("transistor_family", "bjt").lower()
+            t_type = self.parameters.get("transistor_type", "npn").lower()
+
+            # Generate netlist line
+            if family == "bjt":
+                # BJT: Q<name> <C> <B> <E> <model>
+                return f"Q{self.ref} {self.nodes[0]} {self.nodes[1]} {self.nodes[2]} {model_name}"
+            elif family == "mosfet":
+                # MOSFET: M<name> <D> <G> <S> <B> <model>
+                if "substrate" in self.parameters:
+                    substrate = self.parameters["substrate"]
+                else:
+                    if t_type == "nmos":
+                        substrate = "0"
+                    else:
+                        substrate = self.nodes[2]  # TODO: Implement real source detection
+                    # Generate SPICE netlist
+                return f"M{self.ref} {self.nodes[0]} {self.nodes[1]} {self.nodes[2]} {substrate} {model_name}"
+
         elif self.comp_type == "ground":
             # Ground is handled separately (node 0)
             return ""

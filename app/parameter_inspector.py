@@ -1,6 +1,6 @@
 # app/parameter_inspector.py
 from typing import Dict, Any, Union, Optional, TYPE_CHECKING
-from PySide6.QtWidgets import QWidget, QFormLayout, QLabel, QLineEdit, QVBoxLayout, QComboBox
+from PySide6.QtWidgets import QWidget, QFormLayout, QLabel, QLineEdit, QVBoxLayout, QComboBox, QScrollArea
 from PySide6.QtCore import Qt, QTimer
 from functools import partial
 from ui.undo_commands import ParameterChangeCommand
@@ -27,20 +27,45 @@ class ParameterInspector(QWidget):
         "zener": "Zener"
     }
 
+    TRANSISTOR_TYPE_PARAM_MAP = {
+        "npn": ["IS", "BF", "NF", "VAF", "IKF", "CJE", "CJC", "TF"],
+        "pnp": ["IS", "BF", "NF", "VAF", "IKF", "CJE", "CJC", "TF"],
+        "nmos": ["KP", "LAMBDA", "CGS", "CGD", "CBD", "VTO"],
+        "pmos": ["KP", "LAMBDA", "CGS", "CGD", "CBD", "VTO"]
+    }
+
+    # Dropdown labels for UI
+    TRANSISTOR_TYPE_LABELS = {
+        "npn": "NPN BJT",
+        "pnp": "PNP BJT",
+        "nmos": "N-MOSFET",
+        "pmos": "P-MOSFET"
+    }
+
     def __init__(self, schematic_view: 'SchematicView'):
         super().__init__()
         self.schematic_view = schematic_view
         self.current_item: Optional['ComponentItem'] = None
 
+        # Scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)  # Important to allow resizing
+        scroll_content = QWidget()  # The content inside the scroll area
+        scroll_area.setWidget(scroll_content)
+
+        # Layout inside scroll area
+        self.form = QFormLayout(scroll_content)
+
+        # Main layout
         self.main_layout = QVBoxLayout(self)
-        self.form = QFormLayout()
-        self.main_layout.addLayout(self.form)
+        self.main_layout.addWidget(scroll_area)
 
         # Track active line edits to prevent garbage collection issues
         self.param_fields: Dict[str, QLineEdit] = {}
 
         # Keep reference to avoid GC
         self.diode_type_combo: Optional[QComboBox] = None
+        self.transistor_type_combo: Optional[QComboBox] = None
 
     def inspect_component(self, component_item: 'ComponentItem') -> None:
         """Populates the form with parameters from the selected component."""
@@ -63,6 +88,7 @@ class ParameterInspector(QWidget):
 
         self.param_fields.clear()
         self.diode_type_combo = None
+        self.transistor_type_combo = None
 
         # Header Info
         self.form.addRow(QLabel("<b>Reference:</b>"), QLabel(component_item.ref))
@@ -88,6 +114,29 @@ class ParameterInspector(QWidget):
                 line_edit.editingFinished.connect(partial(self._on_parameter_edited, key, line_edit))
                 self.form.addRow(QLabel(key), line_edit)
                 self.param_fields[key] = line_edit
+
+        elif model.type == "transistor":
+            # Transistor type dropdown (npn/pnp/nmos/pmos)
+            transistor_type = model.parameters.get("type", "npn")
+            self.transistor_type_combo = QComboBox()
+            for k in ["npn", "pnp", "nmos", "pmos"]:
+                self.transistor_type_combo.addItem(k.upper(), k)
+
+            self.transistor_type_combo.setCurrentIndex(
+                ["npn", "pnp", "nmos", "pmos"].index(transistor_type)
+            )
+
+            self.transistor_type_combo.currentIndexChanged.connect(self._on_transistor_type_changed)
+            self.form.addRow(QLabel("transistor_type"), self.transistor_type_combo)
+
+            # Show only relevant parameter fields for the selected transistor type
+            for key in self.TRANSISTOR_TYPE_PARAM_MAP[transistor_type]:
+                val = model.parameters.get(key, "")
+                line_edit = QLineEdit(str(val))
+                line_edit.editingFinished.connect(partial(self._on_parameter_edited, key, line_edit))
+                self.form.addRow(QLabel(key), line_edit)
+                self.param_fields[key] = line_edit
+
         else:
             # Non-diode regular parameter editing (as before)
             for key, value in model.parameters.items():
@@ -117,6 +166,34 @@ class ParameterInspector(QWidget):
 
             # The parameters visible/necessary change, so refresh UI
             self.current_item.update_symbol()
+            QTimer.singleShot(0, partial(self.inspect_component, self.current_item))
+
+    def _on_transistor_type_changed(self, idx: int) -> None:
+        """Handle the transistor type dropdown changing, diode-style (no DEFAULT_PARAMS needed)."""
+        if not self.current_item:
+            return
+
+        model = self.current_item.model
+        new_type = self.transistor_type_combo.currentData()
+        old_type = model.parameters.get("type", "npn")
+
+        if new_type != old_type:
+            # Update the type in the model (undoable if undo stack exists)
+            undo_stack = self.schematic_view.undo_stack
+            if undo_stack:
+                undo_stack.push(ParameterChangeCommand(
+                    model, "type", old_type, new_type,
+                    component_item=self.current_item
+                ))
+            else:
+                model.parameters["type"] = new_type
+                self.current_item.refresh_label()
+
+            # Refresh the component symbol in the schematic
+            self.current_item.update_symbol()
+
+            # Refresh the inspector UI to show only the parameters relevant to the new type
+            # (TRANSISTOR_TYPE_PARAM_MAP defines which fields are shown)
             QTimer.singleShot(0, partial(self.inspect_component, self.current_item))
 
     def _convert_value(self, text: str) -> Union[int, float, str]:

@@ -8,7 +8,7 @@ and waveform viewer.
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QFrame,
-    QPushButton, QSplitter, QTabWidget, QApplication, QLabel
+    QPushButton, QSplitter, QTabWidget, QLabel
 )
 from PySide6.QtCore import Qt
 from ui.schematic_view import SchematicView
@@ -85,10 +85,10 @@ class AppWindow(QMainWindow):
 
         # --- Bottom Section: Waveform Viewer ---
         self.waveform_viewer = WaveformViewer()
-        self.waveform_viewer.setMinimumHeight(200)
+        self.waveform_viewer.setMinimumHeight(300)
         self._main_splitter.addWidget(self.waveform_viewer)
 
-        self._main_splitter.setSizes([600, 400])
+        self._main_splitter.setSizes([700, 300])
 
         main_layout.addWidget(self._main_splitter)
 
@@ -191,7 +191,7 @@ class AppWindow(QMainWindow):
                 'panel': '#e1e1e1',
                 'button': '#f1f1f1',
                 'hover': '#e7e7e7',
-                'selected': '#4ECDC4',
+                'selected': '#4CAF50',
                 'border': '#aaaaaa',
                 'scrollbar_bg': 'transparent',
                 'scrollbar_handle': '#f1f1f1',
@@ -239,6 +239,7 @@ class AppWindow(QMainWindow):
             }}
             QPushButton:checked {{
                 background-color: {colors['selected']};
+                color: white;
             }}
             QScrollBar:vertical {{
                 background: {colors['scrollbar_bg']};

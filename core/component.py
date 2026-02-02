@@ -21,14 +21,33 @@ class Component:
             "N": 1.0,  # ideality factor
             "TT": 0,  # transit time (switching, 0 for most non-schottky)
             # Zener-specific parameters (optional, for zener only)
-            # "BV": 5.6,               # breakdown voltage (only for zener)
-            # "IBV": 0.001             # reverse current at breakdown voltage (only for zener)
+            "BV": 5.6,               # breakdown voltage (only for zener)
+            "IBV": 0.001             # reverse current at breakdown voltage (only for zener)
         },
         "ground": {"type": "ground"},
         "dc_voltage_source":  {"voltage": 5.0, "type": "dc_voltage_source"},
         "ac_voltage_source": {"voltage":  5.0, "frequency": 1000, "type": "ac_voltage_source"},
         "dc_current_source": {"current": 0.001, "type":  "dc_current_source"},
-        "generic": {"type": "generic"}
+        "generic": {"type": "generic"},
+        "transistor": {
+            "family_type": "bjt",   # default family
+            "type": "npn",          # default transistor type
+            # For BJTs
+            "IS": 1e-15,
+            "BF": 100,
+            "NF": 1.0,
+            "VAF": 100,
+            "IKF": 0.1,
+            "CJE": 2e-12,
+            "CJC": 1e-12,
+            "TF": 0.5e-9,
+            # For MOSFETs
+            "KP": 50e-6,
+            "LAMBDA": 0.02,
+            "CGS": 1e-12,
+            "CGD": 1e-12,
+            "CBD":1e-12
+        }
     }
 
     def __init__(self, ref: str, pins: Optional[List[Pin]] = None,
@@ -52,6 +71,45 @@ class Component:
                 self.parameters.setdefault("BV", 5.6)  # default breakdown V for Zener
                 self.parameters.setdefault("IBV", 1e-3)  # 1 mA at breakdown
 
+        if self.type == "transistor":
+            family = self.parameters.get("transistor_family", "").lower()
+            t_type = self.parameters.get("transistor_type", "").lower()
+
+            # ------------------
+            # BJT
+            # ------------------
+            if family == "bjt":
+                # Common BJT defaults
+                self.parameters.setdefault("IS", 1e-15)  # saturation current
+                self.parameters.setdefault("BF", 100)  # forward beta
+                self.parameters.setdefault("NF", 1.0)  # emission coefficient
+                self.parameters.setdefault("VAF", 100)  # Early voltage
+                self.parameters.setdefault("IKF", 0.1)  # beta roll-off current
+                self.parameters.setdefault("CJE", 2e-12)  # base-emitter capacitance
+                self.parameters.setdefault("CJC", 1e-12)  # base-collector capacitance
+                self.parameters.setdefault("TF", 0.5e-9)  # forward transit time
+
+                if t_type == "pnp":
+                    # PNP usually mirrors NPN with polarity handled elsewhere
+                    pass
+
+            # ------------------
+            # MOSFET
+            # ------------------
+            elif family == "mosfet":
+                # Common MOSFET defaults
+                self.parameters.setdefault("KP", 50e-6)  # transconductance parameter
+                self.parameters.setdefault("LAMBDA", 0.02)  # channel-length modulation
+                self.parameters.setdefault("CGS", 1e-12)
+                self.parameters.setdefault("CGD", 1e-12)
+                self.parameters.setdefault("CBD", 1e-12)
+
+                if t_type == "nmos":
+                    self.parameters.setdefault("VTO", 1.0)  # threshold voltage
+                elif t_type == "pmos":
+                    self.parameters.setdefault("VTO", -1.0)  # negative threshold
+                    self.parameters.setdefault("KP", 25e-6)  # PMOS usually weaker
+
         # FIX: Automatically generate entry and exit pins if none are provided
         if pins:
             self.pins = pins
@@ -61,16 +119,34 @@ class Component:
                 self.pins = [
                     Pin(name="1", direction=PinDirection.INPUT, rel_x=25, rel_y=0)
                 ]
-            # Voltage and current sources have vertical pin layout (2x1 grid:  50x100)
-            # Pin + (positive): top center
-            # Pin - (negative): bottom center
+            # Voltage and current sources have vertical pin layout (2x1 grid: 50x100)
             elif self.type in ("dc_voltage_source", "ac_voltage_source", "dc_current_source"):
                 self.pins = [
                     Pin(name="+", direction=PinDirection.OUTPUT, rel_x=25, rel_y=0),
                     Pin(name="-", direction=PinDirection.INPUT, rel_x=25, rel_y=100)
                 ]
+            # BJTs
+            elif self.type == "transistor":
+                transistor_type = self.parameters.get("type", "npn")
+                if transistor_type in ("npn", "pnp"):
+                    # BJT layout: Base (left), Collector (top), Emitter (bottom-right)
+                    # Matches standard symbol with base on left, collector up, emitter down-right
+                    self.pins = [
+                        Pin(name="B", direction=PinDirection.INPUT, rel_x=0, rel_y=25),  # Base (left)
+                        Pin(name="C", direction=PinDirection.INPUT, rel_x=65, rel_y=-4),  # Collector (top)
+                        Pin(name="E", direction=PinDirection.OUTPUT, rel_x=65, rel_y=54)  # Emitter (bottom)
+                    ]
+                # MOSFETs (N-channel/P-channel)
+                elif transistor_type in ("nmos", "pmos"):
+                    # MOSFET layout: Gate (left), Drain (top), Source (bottom)
+                    # Matches standard symbol with gate on left, drain up, source down
+                    self.pins = [
+                        Pin(name="G", direction=PinDirection.INPUT, rel_x=0, rel_y=25),  # Gate (left)
+                        Pin(name="D", direction=PinDirection.INPUT, rel_x=50, rel_y=0),  # Drain (top)
+                        Pin(name="S", direction=PinDirection.OUTPUT, rel_x=50, rel_y=50)  # Source (bottom)
+                    ]
             else:
-                # Standard components:  Assuming standard ComponentItem size of 100x50
+                # Standard components: Assuming standard ComponentItem size of 100x50
                 # Pin 1 (Entry): Left edge, middle height
                 # Pin 2 (Exit): Right edge, middle height
                 self.pins = [

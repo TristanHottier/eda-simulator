@@ -1,7 +1,7 @@
 # app/component_palette.py
 from typing import TYPE_CHECKING
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QPushButton, QLabel, QFrame, QColorDialog
+    QWidget, QVBoxLayout, QPushButton, QLabel, QFrame, QColorDialog, QComboBox, QCompleter
 )
 from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import QColor
@@ -45,12 +45,17 @@ class ComponentPalette(QWidget):
 
         # --- Component Section ---
         layout.addWidget(QLabel("<b>Components</b>"))
-        component_types = ["Resistor", "Capacitor", "LED", "Inductor", "Ground", "Diode"]
-        for comp_type in component_types:
-            btn = QPushButton(comp_type)
-            # Use default argument in lambda to capture the current string value
-            btn.clicked.connect(lambda checked, t=comp_type:  self.add_component(t))
-            layout.addWidget(btn)
+        component_types = ["Resistor", "Capacitor", "LED", "Inductor", "Ground", "Diode", "Transistor"]
+        combo = QComboBox()
+        combo.setEditable(True)
+        combo.setInsertPolicy(QComboBox.NoInsert)
+        combo.completer().setFilterMode(Qt.MatchContains)
+        combo.completer().setCompletionMode(QCompleter.PopupCompletion)
+        combo.addItems(component_types)
+        combo.activated.connect(
+            lambda i: self.add_component(combo.itemText(i))
+        )
+        layout.addWidget(combo)
 
         # Separator for Sources section
         line_sources = QFrame()
